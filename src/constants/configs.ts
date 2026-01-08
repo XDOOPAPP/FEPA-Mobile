@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 
-const BASE_IP = Platform.OS === 'android' ? '192.168.1.133' : 'localhost';
+const BASE_IP = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
 
 export const SERVICES = {
   AUTH: `http://${BASE_IP}:3001`,    // Port của Auth Service

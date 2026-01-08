@@ -1,148 +1,207 @@
-import React, { useContext } from 'react';
-import { 
-  View, 
-  Text, 
-  Button, 
-  StyleSheet, 
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
   ActivityIndicator,
-  Alert
+  RefreshControl,
 } from 'react-native';
-import { AuthContext } from '../../../store/AuthContext';
+import { useAuth } from '../../../common/hooks/useMVVM';
 
-export const HomeScreen = ({ navigation }: any) => {
-  const authContext = useContext(AuthContext);
+type Props = any;
 
-  if (!authContext) {
+interface DashboardStats {
+  totalExpenses: number;
+  monthlyExpenses: number;
+  budgetUsed: number;
+  savingsGoal: number;
+}
+
+interface CategoryExpense {
+  category: string;
+  amount: number;
+  percentage: number;
+}
+
+const HomeScreen: React.FC<Props> = () => {
+  const { authState } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    totalExpenses: 15200000,
+    monthlyExpenses: 8500000,
+    budgetUsed: 65,
+    savingsGoal: 2000000,
+  });
+
+  const [categoryExpenses, setCategoryExpenses] = useState<CategoryExpense[]>([
+    { category: '🍔 Ăn uống', amount: 3200000, percentage: 38 },
+    { category: '🚗 Giao thông', amount: 1800000, percentage: 21 },
+    { category: '🏠 Nhà cửa', amount: 2000000, percentage: 24 },
+    { category: '👗 Quần áo', amount: 800000, percentage: 9 },
+    { category: '🎮 Giải trí', amount: 700000, percentage: 8 },
+  ]);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Lấy thống kê
+  const loadStats = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Giả lập API call
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+    } catch (error) {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  // Pull to refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  }, [loadStats]);
+
+  if (isLoading && !refreshing) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2196F3" />
       </View>
     );
   }
 
-  const { user, isAuthenticated, logout, loadUserInfo, isLoading } = authContext;
-
-  const handleLogout = async () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất?',
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
-        },
-      ]
-    );
-  };
-
-  const handleRefreshUserInfo = async () => {
-    try {
-      await loadUserInfo();
-      Alert.alert('Thành công', 'Đã cập nhật thông tin người dùng');
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể cập nhật thông tin người dùng');
-    }
-  };
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Chào mừng trở lại!</Text>
-        <Text style={styles.subtitle}>Thông tin người dùng đã đăng nhập</Text>
+        <Text style={styles.greeting}>
+          Xin chào, {authState.user?.fullName || 'Bạn'}!
+        </Text>
+        <Text style={styles.subtitle}>
+          Hôm nay là một ngày tốt để quản lý tài chính
+        </Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Trạng thái đăng nhập</Text>
-        <View style={styles.statusRow}>
-          <Text style={styles.label}>Đã đăng nhập:</Text>
-          <View style={[styles.statusBadge, isAuthenticated && styles.statusBadgeActive]}>
-            <Text style={[styles.statusText, isAuthenticated && styles.statusTextActive]}>
-              {isAuthenticated ? '✓ Có' : '✗ Không'}
+      {/* Main Stats Card */}
+      <View style={styles.mainStatsCard}>
+        <View style={styles.statsRow}>
+          <View>
+            <Text style={styles.statsLabel}>Tổng chi tiêu tháng này</Text>
+            <Text style={styles.statsValue}>
+              ₫{stats.monthlyExpenses.toLocaleString('vi-VN')}
             </Text>
           </View>
+          <View style={styles.budgetIndicator}>
+            <Text style={styles.budgetPercentage}>{stats.budgetUsed}%</Text>
+            <Text style={styles.budgetLabel}>Ngân sách</Text>
+          </View>
+        </View>
+
+        {/* Progress Bar */}
+        <View style={styles.progressContainer}>
+          <View
+            style={[
+              styles.progressBar,
+              {
+                width: `${stats.budgetUsed}%`,
+                backgroundColor: stats.budgetUsed > 80 ? '#E53935' : '#4CAF50',
+              },
+            ]}
+          />
         </View>
       </View>
 
-      {user ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Thông tin người dùng</Text>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>ID:</Text>
-            <Text style={styles.value}>{user.id}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Email:</Text>
-            <Text style={styles.value}>{user.email}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Họ và tên:</Text>
-            <Text style={styles.value}>{user.fullName}</Text>
-          </View>
-
-          {user.avatar && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Avatar:</Text>
-              <Text style={styles.value}>{user.avatar}</Text>
-            </View>
-          )}
-
-          {user.createdAt && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Ngày tạo:</Text>
-              <Text style={styles.value}>
-                {new Date(user.createdAt).toLocaleDateString('vi-VN')}
-              </Text>
-            </View>
-          )}
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Thông tin người dùng</Text>
-          <Text style={styles.emptyText}>
-            {isLoading ? 'Đang tải thông tin...' : 'Chưa có thông tin người dùng'}
+      {/* Quick Stats */}
+      <View style={styles.quickStatsContainer}>
+        <View style={styles.quickStatCard}>
+          <Text style={styles.quickStatIcon}>💰</Text>
+          <Text style={styles.quickStatLabel}>Tiết kiệm lũy tích</Text>
+          <Text style={styles.quickStatValue}>
+            ₫{(stats.totalExpenses * 0.3).toLocaleString('vi-VN')}
           </Text>
         </View>
-      )}
-
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Làm mới thông tin"
-          onPress={handleRefreshUserInfo}
-          color="#6200ee"
-        />
+        <View style={styles.quickStatCard}>
+          <Text style={styles.quickStatIcon}>🎯</Text>
+          <Text style={styles.quickStatLabel}>Mục tiêu tháng này</Text>
+          <Text style={styles.quickStatValue}>
+            ₫{stats.savingsGoal.toLocaleString('vi-VN')}
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Đăng xuất"
-          onPress={handleLogout}
-          color="#d32f2f"
-        />
+      {/* Top Categories */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Chi tiêu theo danh mục</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeMoreText}>Xem thêm</Text>
+          </TouchableOpacity>
+        </View>
+
+        {categoryExpenses.map((cat, index) => (
+          <View key={index} style={styles.categoryItem}>
+            <View style={styles.categoryInfo}>
+              <Text style={styles.categoryName}>{cat.category}</Text>
+              <Text style={styles.categoryAmount}>
+                ₫{cat.amount.toLocaleString('vi-VN')}
+              </Text>
+            </View>
+            <View style={styles.categoryProgressContainer}>
+              <View
+                style={[
+                  styles.categoryProgress,
+                  {
+                    width: `${cat.percentage}%`,
+                    backgroundColor: '#2196F3',
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.categoryPercentage}>{cat.percentage}%</Text>
+          </View>
+        ))}
       </View>
 
-      <View style={styles.debugSection}>
-        <Text style={styles.debugTitle}>Debug Info</Text>
-        <Text style={styles.debugText}>
-          isAuthenticated: {isAuthenticated ? 'true' : 'false'}
-        </Text>
-        <Text style={styles.debugText}>
-          isLoading: {isLoading ? 'true' : 'false'}
-        </Text>
-        <Text style={styles.debugText}>
-          User: {user ? 'Có' : 'Không'}
-        </Text>
+      {/* Tips Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>💡 Mẹo tiết kiệm</Text>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>Giảm chi tiêu ăn uống</Text>
+          <Text style={styles.tipText}>
+            Chuẩn bị đồ ăn ở nhà có thể giúp bạn tiết kiệm tới 30% hàng tháng
+          </Text>
+        </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>Theo dõi ghi chú hóa đơn</Text>
+          <Text style={styles.tipText}>
+            Quét hóa đơn để tự động ghi lại chi tiêu, không bỏ sót khoản nào
+          </Text>
+        </View>
+
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>Đặt mục tiêu hàng tháng</Text>
+          <Text style={styles.tipText}>
+            Lập ngân sách cho từng danh mục để kiểm soát chi tiêu tốt hơn
+          </Text>
+        </View>
       </View>
+
+      {/* Bottom Spacing */}
+      <View style={{ height: 30 }} />
     </ScrollView>
   );
 };
@@ -150,113 +209,187 @@ export const HomeScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F5F5F5',
   },
-  contentContainer: {
-    padding: 20,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
-    marginBottom: 24,
-    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  greeting: {
+    fontSize: 24,
+    fontWeight: '700',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#999',
   },
-  card: {
-    backgroundColor: '#fff',
+  mainStatsCard: {
+    marginHorizontal: 20,
+    backgroundColor: '#2196F3',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: 20,
+    marginBottom: 20,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 15,
+  },
+  statsLabel: {
+    fontSize: 13,
+    color: '#B3E5FC',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  statsValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  budgetIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  budgetPercentage: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  budgetLabel: {
+    fontSize: 12,
+    color: '#B3E5FC',
+    fontWeight: '500',
+  },
+  progressContainer: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  quickStatsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    gap: 15,
+  },
+  quickStatCard: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    padding: 15,
+    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  quickStatIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+  quickStatLabel: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 6,
+  },
+  quickStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#333',
-    marginBottom: 12,
   },
-  statusRow: {
+  section: {
+    marginHorizontal: 20,
+    marginBottom: 25,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  statusBadge: {
-    backgroundColor: '#e0e0e0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#4caf50',
-  },
-  statusText: {
-    color: '#666',
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: '#fff',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  label: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-    flex: 1,
-  },
-  value: {
-    fontSize: 14,
-    color: '#333',
-    flex: 2,
-    textAlign: 'right',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 16,
-  },
-  buttonContainer: {
     marginBottom: 12,
   },
-  debugSection: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#fff3cd',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ffc107',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
   },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginBottom: 8,
-  },
-  debugText: {
+  seeMoreText: {
     fontSize: 12,
-    color: '#856404',
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  categoryInfo: {
+    width: 120,
+  },
+  categoryName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 4,
+  },
+  categoryAmount: {
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  categoryProgressContainer: {
+    flex: 1,
+    height: 4,
+    backgroundColor: '#EEE',
+    marginHorizontal: 12,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  categoryProgress: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  categoryPercentage: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#999',
+    width: 30,
+    textAlign: 'right',
+  },
+  tipCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFC107',
+  },
+  tipTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 6,
+  },
+  tipText: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 18,
   },
 });
 

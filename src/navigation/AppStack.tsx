@@ -1,33 +1,81 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Text } from 'react-native';
 import HomeScreen from '../features/expense/screens/HomeScreen';
+import { ExpenseNavigator } from '../features/expenses/navigation/ExpenseNavigator';
+import { BudgetNavigator } from '../features/budgets/navigation/BudgetNavigator';
+import { ProfileNavigator } from '../features/profile/navigation/ProfileNavigator';
 
-const Stack = createNativeStackNavigator();
+export type AppStackParamList = {
+  Dashboard: undefined;
+  ExpenseTab: undefined;
+  BudgetTab: undefined;
+  ProfileTab: undefined;
+};
+
+const Stack = createNativeStackNavigator<AppStackParamList>();
+const Tab = createBottomTabNavigator();
 
 const AppStack = () => {
   return (
-    <Stack.Navigator
+    <Tab.Navigator
       screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: '#6200ee',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
+        tabBarActiveTintColor: '#2196F3',
+        tabBarInactiveTintColor: '#999',
+        headerShown: false,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
         },
       }}
     >
-      <Stack.Screen 
-        name="Home" 
+      <Tab.Screen
+        name="Dashboard"
         component={HomeScreen}
         options={{
-          title: 'Trang Chủ',
+          title: 'Trang chủ',
+          tabBarLabel: 'Trang chủ',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>🏠</Text>
+          ),
         }}
       />
-    </Stack.Navigator>
+      <Tab.Screen
+        name="ExpenseTab"
+        component={ExpenseNavigator}
+        options={{
+          title: 'Chi tiêu',
+          tabBarLabel: 'Chi tiêu',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>💰</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="BudgetTab"
+        component={BudgetNavigator}
+        options={{
+          title: 'Ngân sách',
+          tabBarLabel: 'Ngân sách',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>📊</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileNavigator}
+        options={{
+          title: 'Tài khoản',
+          tabBarLabel: 'Tài khoản',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>👤</Text>
+          ),
+        }}
+      />
+    </Tab.Navigator>
   );
 };
 
 export default AppStack;
-
