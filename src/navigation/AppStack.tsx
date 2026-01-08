@@ -6,11 +6,13 @@ import HomeScreen from '../features/expense/screens/HomeScreen';
 import { ExpenseNavigator } from '../features/expenses/navigation/ExpenseNavigator';
 import { BudgetNavigator } from '../features/budgets/navigation/BudgetNavigator';
 import { ProfileNavigator } from '../features/profile/navigation/ProfileNavigator';
+import { MoreNavigator } from '../features/more/navigation/MoreNavigator';
 
 export type AppStackParamList = {
   Dashboard: undefined;
   ExpenseTab: undefined;
   BudgetTab: undefined;
+  MoreTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -60,6 +62,17 @@ const AppStack = () => {
           tabBarLabel: 'Ngân sách',
           tabBarIcon: ({ color }) => (
             <Text style={{ fontSize: 20, color }}>📊</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="MoreTab"
+        component={MoreNavigator}
+        options={{
+          title: 'Thêm',
+          tabBarLabel: 'Thêm',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ fontSize: 20, color }}>•••</Text>
           ),
         }}
       />

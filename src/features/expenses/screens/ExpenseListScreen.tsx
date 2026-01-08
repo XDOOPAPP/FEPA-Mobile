@@ -9,6 +9,7 @@ import {
   Alert,
   RefreshControl,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -30,6 +31,8 @@ interface ExpenseItem {
   date: string;
 }
 
+type SortType = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
+
 const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
   const { authState } = useAuth();
   const { expenseState, getExpenses, deleteExpense } = useExpense(
@@ -37,6 +40,8 @@ const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
   );
   const [searchText, setSearchText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [sortType, setSortType] = useState<SortType>('date-desc');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Lấy danh sách chi tiêu khi screen load
   useEffect(() => {
@@ -79,11 +84,32 @@ const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   // Lọc chi tiêu theo tìm kiếm
-  const filteredExpenses = (expenseState.expenses || []).filter(
-    (expense: ExpenseItem) =>
-      expense.description.toLowerCase().includes(searchText.toLowerCase()) ||
-      expense.category.toLowerCase().includes(searchText.toLowerCase()),
-  );
+  const filteredExpenses = (expenseState.expenses || [])
+    .filter(
+      (expense: ExpenseItem) =>
+        expense.description.toLowerCase().includes(searchText.toLowerCase()) ||
+        expense.category.toLowerCase().includes(searchText.toLowerCase()),
+    )
+    .filter(
+      (expense: ExpenseItem) =>
+        !selectedCategory || expense.category === selectedCategory,
+    );
+
+  // Sort expenses
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+    switch (sortType) {
+      case 'date-desc':
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      case 'date-asc':
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      case 'amount-desc':
+        return b.amount - a.amount;
+      case 'amount-asc':
+        return a.amount - b.amount;
+      default:
+        return 0;
+    }
+  });
 
   // Render mỗi chi tiêu
   const renderExpenseItem = ({ item }: { item: ExpenseItem }) => (
@@ -115,7 +141,7 @@ const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
   // Empty state
   if (
     !expenseState.isLoading &&
-    (!filteredExpenses || filteredExpenses.length === 0)
+    (!sortedExpenses || sortedExpenses.length === 0)
   ) {
     return (
       <View style={styles.container}>
@@ -151,14 +177,99 @@ const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
         />
       </View>
 
+      {/* Sort & Filter Options */}
+      <View style={styles.filterContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+        >
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortType === 'date-desc' && styles.filterButtonActive,
+            ]}
+            onPress={() => setSortType('date-desc')}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                sortType === 'date-desc' && styles.filterTextActive,
+              ]}
+            >
+              📅 Mới nhất
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortType === 'date-asc' && styles.filterButtonActive,
+            ]}
+            onPress={() => setSortType('date-asc')}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                sortType === 'date-asc' && styles.filterTextActive,
+              ]}
+            >
+              📅 Cũ nhất
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortType === 'amount-desc' && styles.filterButtonActive,
+            ]}
+            onPress={() => setSortType('amount-desc')}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                sortType === 'amount-desc' && styles.filterTextActive,
+              ]}
+            >
+              💰 Cao nhất
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortType === 'amount-asc' && styles.filterButtonActive,
+            ]}
+            onPress={() => setSortType('amount-asc')}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                sortType === 'amount-asc' && styles.filterTextActive,
+              ]}
+            >
+              💰 Thấp nhất
+            </Text>
+          </TouchableOpacity>
+          {selectedCategory && (
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setSelectedCategory(null)}
+            >
+              <Text style={styles.filterText}>✖️ Xóa bộ lọc</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </View>
+
       {/* Stats */}
-      {filteredExpenses.length > 0 && (
+      {sortedExpenses.length > 0 && (
         <View style={styles.statsContainer}>
           <Text style={styles.statsText}>
             Tổng: ₫
-            {filteredExpenses
+            {sortedExpenses
               .reduce((sum: number, exp: ExpenseItem) => sum + exp.amount, 0)
               .toLocaleString('vi-VN')}
+          </Text>
+          <Text style={styles.countText}>
+            ({sortedExpenses.length} giao dịch)
           </Text>
         </View>
       )}
@@ -171,7 +282,7 @@ const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={filteredExpenses}
+          data={sortedExpenses}
           renderItem={renderExpenseItem}
           keyExtractor={(item: ExpenseItem) => item.id}
           refreshControl={
@@ -213,17 +324,57 @@ const styles = StyleSheet.create({
     color: '#333',
     backgroundColor: '#F9F9F9',
   },
+  filterContainer: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  filterScroll: {
+    marginHorizontal: -15,
+    paddingHorizontal: 15,
+  },
+  filterButton: {
+    backgroundColor: '#F0F0F0',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#DDD',
+  },
+  filterButtonActive: {
+    backgroundColor: '#2196F3',
+    borderColor: '#1976D2',
+  },
+  filterText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
   statsContainer: {
     backgroundColor: '#FFF',
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   statsText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#2196F3',
+  },
+  countText: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
   },
   listContainer: {
     padding: 15,

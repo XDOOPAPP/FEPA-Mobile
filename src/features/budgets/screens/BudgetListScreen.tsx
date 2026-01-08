@@ -31,10 +31,10 @@ interface BudgetItem {
 const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
   const { authState } = useAuth();
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Giả dữ liệu budget mẫu
+  // Giả dữ liệu budget mẫu - sau này sẽ lấy từ API
   const mockBudgets: BudgetItem[] = [
     {
       id: '1',
@@ -75,7 +75,7 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
         setBudgets(mockBudgets);
         setIsLoading(false);
       }, 500);
-    } catch (error) {
+    } catch {
       Alert.alert('Lỗi', 'Không thể tải ngân sách');
       setIsLoading(false);
     }
