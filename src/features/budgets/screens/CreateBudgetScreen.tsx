@@ -19,6 +19,7 @@ import {
   ExpenseCategory,
   EXPENSE_CATEGORIES,
 } from '../../../core/models/Expense';
+import { useFeatureGate } from '../../../core/viewmodels/FeatureGateViewModel';
 
 type RootStackParamList = {
   CreateBudget: undefined;
@@ -36,6 +37,7 @@ interface CreateBudgetForm {
 const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
   const authContext = useContext(AuthContext);
   const { createBudget, isLoading } = useBudget(authContext?.userToken || '');
+  const { canCreateBudget, getBudgetQuota, isPremium } = useFeatureGate();
 
   // Get current month in YYYY-MM format
   const getCurrentMonth = () => {
@@ -69,6 +71,29 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
 
   // Xử lý tạo ngân sách từ API
   const handleCreateBudget = useCallback(async () => {
+    // Check premium feature
+    if (!canCreateBudget()) {
+      const quota = getBudgetQuota();
+      Alert.alert(
+        '📊 Nâng cấp Premium',
+        `Bạn đã đạt tới giới hạn ${quota.total} ngân sách trong gói Free.\n\nNâng cấp lên Premium để tạo ngân sách không giới hạn.`,
+        [
+          {
+            text: 'Hủy',
+            style: 'cancel',
+          },
+          {
+            text: 'Nâng cấp',
+            onPress: () => {
+              // Navigate to subscription plans
+              navigation.getParent()?.navigate('Profile', { screen: 'Subscription' });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     if (!validateForm()) return;
 
     try {
@@ -92,7 +117,7 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
         error.message || 'Lỗi tạo ngân sách. Vui lòng thử lại.',
       );
     }
-  }, [formData, validateForm, navigation, createBudget]);
+  }, [formData, validateForm, navigation, createBudget, canCreateBudget, getBudgetQuota]);
 
   const handleInputChange = (field: keyof CreateBudgetForm, value: string) => {
     setFormData(prev => ({

@@ -20,6 +20,7 @@ import {
   ExpenseCategory,
   EXPENSE_CATEGORIES,
 } from '../../../core/models/Expense';
+import { useFeatureGate } from '../../../core/viewmodels/FeatureGateViewModel';
 
 type RootStackParamList = {
   CreateExpense: undefined;
@@ -38,6 +39,7 @@ interface CreateExpenseForm {
 const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
   const authContext = useContext(AuthContext);
   const { createExpense, isLoading } = useExpense(authContext?.userToken || '');
+  const { canCreateExpense, getExpenseQuota } = useFeatureGate();
 
   const [formData, setFormData] = useState<CreateExpenseForm>({
     amount: '',
@@ -69,6 +71,29 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
 
   // Xử lý tạo chi tiêu từ API
   const handleCreateExpense = useCallback(async () => {
+    // Check premium feature
+    if (!canCreateExpense()) {
+      const quota = getExpenseQuota();
+      Alert.alert(
+        '💰 Nâng cấp Premium',
+        `Bạn đã đạt tới giới hạn ${quota.total} chi tiêu trong gói Free.\n\nNâng cấp lên Premium để ghi chi tiêu không giới hạn.`,
+        [
+          {
+            text: 'Hủy',
+            style: 'cancel',
+          },
+          {
+            text: 'Nâng cấp',
+            onPress: () => {
+              // Navigate to subscription plans
+              navigation.getParent()?.navigate('Profile', { screen: 'Subscription' });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     if (!validateForm()) return;
 
     try {
@@ -94,7 +119,7 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
         error.message || 'Lỗi tạo chi tiêu. Vui lòng thử lại.',
       );
     }
-  }, [formData, validateForm, navigation, createExpense]);
+  }, [formData, validateForm, navigation, createExpense, canCreateExpense, getExpenseQuota]);
 
   // Xử lý thay đổi ngày
   const handleDateChange = (event: any, selectedDate?: Date) => {
