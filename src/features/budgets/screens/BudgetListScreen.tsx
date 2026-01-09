@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from 'react';
 import {
   View,
   FlatList,
@@ -10,7 +10,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuth } from '../../../common/hooks/useMVVM';
+import { useBudget } from '../../../common/hooks/useMVVM';
+import { AuthContext } from '../../../store/AuthContext';
+import { EXPENSE_CATEGORIES } from '../../../core/models/Expense';
 
 type RootStackParamList = {
   BudgetList: undefined;
@@ -29,57 +31,18 @@ interface BudgetItem {
 }
 
 const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
-  const { authState } = useAuth();
-  const [budgets, setBudgets] = useState<BudgetItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const authContext = useContext(AuthContext);
+  const { budgetState, getBudgets, deleteBudget, isLoading } = useBudget(
+    authContext?.userToken || '',
+  );
   const [refreshing, setRefreshing] = useState(false);
-
-  // Giả dữ liệu budget mẫu - sau này sẽ lấy từ API
-  const mockBudgets: BudgetItem[] = [
-    {
-      id: '1',
-      category: '🍔 Ăn uống',
-      limit: 5000000,
-      spent: 3200000,
-      month: 'Tháng 1/2026',
-    },
-    {
-      id: '2',
-      category: '🚗 Giao thông',
-      limit: 2000000,
-      spent: 1800000,
-      month: 'Tháng 1/2026',
-    },
-    {
-      id: '3',
-      category: '🏠 Nhà cửa',
-      limit: 10000000,
-      spent: 9500000,
-      month: 'Tháng 1/2026',
-    },
-    {
-      id: '4',
-      category: '👗 Quần áo',
-      limit: 3000000,
-      spent: 1500000,
-      month: 'Tháng 1/2026',
-    },
-  ];
 
   // Lấy danh sách ngân sách
   const loadBudgets = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Giả lập API call
-      setTimeout(() => {
-        setBudgets(mockBudgets);
-        setIsLoading(false);
-      }, 500);
-    } catch {
-      Alert.alert('Lỗi', 'Không thể tải ngân sách');
-      setIsLoading(false);
+    if (authContext?.userToken) {
+      await getBudgets();
     }
-  }, []);
+  }, [authContext?.userToken, getBudgets]);
 
   useEffect(() => {
     loadBudgets();
@@ -102,15 +65,20 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
           { text: 'Hủy', onPress: () => {}, style: 'cancel' },
           {
             text: 'Xóa',
-            onPress: () => {
-              setBudgets(budgets.filter(b => b.id !== id));
+            onPress: async () => {
+              try {
+                await deleteBudget(id);
+                await loadBudgets();
+              } catch (error: any) {
+                Alert.alert('Lỗi', error?.message || 'Không thể xóa ngân sách');
+              }
             },
             style: 'destructive',
           },
         ],
       );
     },
-    [budgets],
+    [deleteBudget, loadBudgets],
   );
 
   // Tính % chi tiêu
@@ -216,7 +184,10 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   // Empty state
-  if (!isLoading && (!budgets || budgets.length === 0)) {
+  if (
+    !isLoading &&
+    (!budgetState.budgets || budgetState.budgets.length === 0)
+  ) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
@@ -238,7 +209,7 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={budgets}
+          data={budgetState.budgets}
           renderItem={renderBudgetItem}
           keyExtractor={(item: BudgetItem) => item.id}
           refreshControl={

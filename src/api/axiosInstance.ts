@@ -1,8 +1,9 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_ENDPOINTS } from '../constants/configs';
+import { API_ENDPOINTS, API_BASE_URL } from '../constants/api';
 
 const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' }
 });
@@ -81,9 +82,10 @@ axiosInstance.interceptors.response.use(
         }
 
         // Gọi API refresh token
-        const response = await axios.post(API_ENDPOINTS.REFRESH, {
-          refreshToken: refreshToken,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}${API_ENDPOINTS.REFRESH}`,
+          { refreshToken: refreshToken }
+        );
 
         const { token: newToken, refreshToken: newRefreshToken } = response.data;
 

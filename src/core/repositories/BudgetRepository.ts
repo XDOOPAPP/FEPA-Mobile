@@ -1,21 +1,17 @@
-import axios from 'axios';
+import axiosInstance from '../../api/axiosInstance';
 import {
   Budget,
   CreateBudgetRequest,
   UpdateBudgetRequest,
 } from '../models/Budget';
-import { API_BASE_URL } from '../../constants/api';
 
 class BudgetRepository {
-  private apiClient = axios.create({
-    baseURL: API_BASE_URL,
-  });
-
   /**
    * Set authorization token for API requests
+   * Note: axiosInstance handles token setup via request interceptor from AsyncStorage
    */
   setAuthToken(token: string) {
-    this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    // Token is automatically added via axiosInstance interceptor from AsyncStorage
   }
 
   /**
@@ -23,7 +19,7 @@ class BudgetRepository {
    */
   async getBudgets(): Promise<Budget[]> {
     try {
-      const response = await this.apiClient.get('/budgets');
+      const response = await axiosInstance.get('/budgets');
       return response.data || [];
     } catch (error: any) {
       throw error.response?.data || { message: 'Lỗi lấy danh sách ngân sách' };
@@ -35,7 +31,7 @@ class BudgetRepository {
    */
   async getBudgetById(id: string): Promise<Budget> {
     try {
-      const response = await this.apiClient.get(`/budgets/${id}`);
+      const response = await axiosInstance.get(`/budgets/${id}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { message: 'Lỗi lấy chi tiết ngân sách' };
@@ -47,7 +43,7 @@ class BudgetRepository {
    */
   async createBudget(request: CreateBudgetRequest): Promise<Budget> {
     try {
-      const response = await this.apiClient.post('/budgets', request);
+      const response = await axiosInstance.post('/budgets', request);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { message: 'Lỗi tạo ngân sách' };
@@ -62,7 +58,7 @@ class BudgetRepository {
     request: UpdateBudgetRequest,
   ): Promise<Budget> {
     try {
-      const response = await this.apiClient.put(`/budgets/${id}`, request);
+      const response = await axiosInstance.put(`/budgets/${id}`, request);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { message: 'Lỗi cập nhật ngân sách' };
@@ -74,7 +70,7 @@ class BudgetRepository {
    */
   async deleteBudget(id: string): Promise<void> {
     try {
-      await this.apiClient.delete(`/budgets/${id}`);
+      await axiosInstance.delete(`/budgets/${id}`);
     } catch (error: any) {
       throw error.response?.data || { message: 'Lỗi xóa ngân sách' };
     }

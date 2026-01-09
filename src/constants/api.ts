@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
   LOGOUT: '/auth/logout',
   GET_PROFILE: '/auth/me',
   UPDATE_PROFILE: '/auth/profile',
+  REFRESH: '/auth/refresh',
 
   // Expenses
   GET_EXPENSES: '/expenses',

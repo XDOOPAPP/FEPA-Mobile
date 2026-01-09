@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useContext } from 'react';
 import {
   View,
   ScrollView,
@@ -10,7 +10,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuth, useBudget, useExpense } from '../../../common/hooks/useMVVM';
+import { useBudget, useExpense } from '../../../common/hooks/useMVVM';
+import { AuthContext } from '../../../store/AuthContext';
 import { Budget } from '../../../core/models/Budget';
 import { Expense } from '../../../core/models/Expense';
 
@@ -24,9 +25,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'BudgetDetail'>;
 
 const BudgetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { id } = route.params;
-  const { authState } = useAuth();
-  const { getBudgetById, deleteBudget } = useBudget(authState.token || '');
-  const { getExpenses } = useExpense(authState.token || '');
+  const authContext = useContext(AuthContext);
+  const { getBudgetById, deleteBudget } = useBudget(
+    authContext?.userToken || '',
+  );
+  const { getExpenses } = useExpense(authContext?.userToken || '');
 
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -49,7 +52,10 @@ const BudgetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       });
       setExpenses(expensesData || []);
     } catch (error: any) {
-      Alert.alert('❌ Lỗi', error.message || 'Không thể tải chi tiết ngân sách');
+      Alert.alert(
+        '❌ Lỗi',
+        error.message || 'Không thể tải chi tiết ngân sách',
+      );
       navigation.goBack();
     } finally {
       setIsLoading(false);

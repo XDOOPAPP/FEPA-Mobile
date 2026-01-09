@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import {
   View,
   TextInput,
@@ -12,10 +12,14 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useExpense, useAuth } from '../../../common/hooks/useMVVM';
+import { useExpense } from '../../../common/hooks/useMVVM';
 import { FieldValidators } from '../../../utils/FormValidation';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ExpenseCategory, EXPENSE_CATEGORIES } from '../../../core/models/Expense';
+import { AuthContext } from '../../../store/AuthContext';
+import {
+  ExpenseCategory,
+  EXPENSE_CATEGORIES,
+} from '../../../core/models/Expense';
 
 type RootStackParamList = {
   CreateExpense: undefined;
@@ -32,8 +36,8 @@ interface CreateExpenseForm {
 }
 
 const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
-  const { authState } = useAuth();
-  const { createExpense, isLoading } = useExpense(authState.token || '');
+  const authContext = useContext(AuthContext);
+  const { createExpense, isLoading } = useExpense(authContext?.userToken || '');
 
   const [formData, setFormData] = useState<CreateExpenseForm>({
     amount: '',
@@ -141,7 +145,7 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
               placeholder="Nhập số tiền"
               placeholderTextColor="#999"
               keyboardType="decimal-pad"
-              editable={!expenseState.isLoading}
+              editable={!isLoading}
               value={formData.amount}
               onChangeText={value => handleInputChange('amount', value)}
             />
@@ -160,21 +164,22 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
             >
               {EXPENSE_CATEGORIES.map(cat => (
                 <TouchableOpacity
-                  key={cat}
+                  key={cat.value}
                   style={[
                     styles.categoryButton,
-                    formData.category === cat && styles.categoryButtonActive,
+                    formData.category === cat.value &&
+                      styles.categoryButtonActive,
                   ]}
-                  onPress={() => handleInputChange('category', cat)}
+                  onPress={() => handleInputChange('category', cat.value)}
                 >
                   <Text
                     style={[
                       styles.categoryButtonText,
-                      formData.category === cat &&
+                      formData.category === cat.value &&
                         styles.categoryButtonTextActive,
                     ]}
                   >
-                    {cat}
+                    {cat.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -188,7 +193,7 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
               style={[styles.input, errors.description && styles.inputError]}
               placeholder="Ví dụ: Cơm trưa tại nhà hàng XYZ"
               placeholderTextColor="#999"
-              editable={!expenseState.isLoading}
+              editable={!isLoading}
               value={formData.description}
               onChangeText={value => handleInputChange('description', value)}
               multiline
@@ -223,10 +228,7 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
 
           {/* Nút Tạo */}
           <TouchableOpacity
-            style={[
-              styles.createButton,
-              expenseState.isLoading && styles.buttonDisabled,
-            ]}
+            style={[styles.createButton, isLoading && styles.buttonDisabled]}
             onPress={handleCreateExpense}
             disabled={isLoading}
           >

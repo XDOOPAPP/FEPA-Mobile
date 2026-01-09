@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import {
   View,
   TextInput,
@@ -12,9 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuth, useBudget } from '../../../common/hooks/useMVVM';
+import { useBudget } from '../../../common/hooks/useMVVM';
+import { AuthContext } from '../../../store/AuthContext';
 import { FieldValidators } from '../../../utils/FormValidation';
-import { ExpenseCategory, EXPENSE_CATEGORIES } from '../../../core/models/Expense';
+import {
+  ExpenseCategory,
+  EXPENSE_CATEGORIES,
+} from '../../../core/models/Expense';
 
 type RootStackParamList = {
   CreateBudget: undefined;
@@ -30,8 +34,8 @@ interface CreateBudgetForm {
 }
 
 const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
-  const { authState } = useAuth();
-  const { createBudget, isLoading } = useBudget(authState.token || '');
+  const authContext = useContext(AuthContext);
+  const { createBudget, isLoading } = useBudget(authContext?.userToken || '');
 
   // Get current month in YYYY-MM format
   const getCurrentMonth = () => {
@@ -49,7 +53,6 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
   });
 
   const [errors, setErrors] = useState<Partial<CreateBudgetForm>>({});
-  const [isLoading, setIsLoading] = useState(false);
 
   // Xác thực form
   const validateForm = useCallback(() => {
@@ -136,9 +139,7 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
                     formData.category === cat.value &&
                       styles.categoryButtonActive,
                   ]}
-                  onPress={() =>
-                    handleInputChange('category', cat.value)
-                  }
+                  onPress={() => handleInputChange('category', cat.value)}
                 >
                   <Text
                     style={[

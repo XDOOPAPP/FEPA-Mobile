@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_ENDPOINTS } from '../../constants/configs';
+import { API_ENDPOINTS, API_BASE_URL } from '../../constants/api';
 import axiosInstance from '../../api/axiosInstance';
 
 // Đăng ký tài khoản mới
@@ -53,7 +53,7 @@ export const refreshTokenApi = async (refreshToken: string) => {
 export const getMeApi = async () => {
   try {
     // Dùng axiosInstance vì cần token trong header
-    const response = await axiosInstance.get(API_ENDPOINTS.ME);
+    const response = await axiosInstance.get(API_ENDPOINTS.GET_PROFILE);
     
     return response.data; 
   } catch (error: any) {

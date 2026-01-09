@@ -193,5 +193,8 @@ export const useExpenseViewModel = (token: string | null) => {
     deleteExpense,
     getStats,
     clearMessages,
+    isLoading: expenseState.isLoading,
+    error: expenseState.error,
+    success: expenseState.success,
   };
 };

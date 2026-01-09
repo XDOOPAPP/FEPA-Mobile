@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useContext } from 'react';
 import {
   View,
   TextInput,
@@ -12,9 +12,13 @@ import {
   Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuth, useBudget } from '../../../common/hooks/useMVVM';
+import { useBudget } from '../../../common/hooks/useMVVM';
+import { AuthContext } from '../../../store/AuthContext';
 import { FieldValidators } from '../../../utils/FormValidation';
-import { ExpenseCategory, EXPENSE_CATEGORIES } from '../../../core/models/Expense';
+import {
+  ExpenseCategory,
+  EXPENSE_CATEGORIES,
+} from '../../../core/models/Expense';
 
 type RootStackParamList = {
   EditBudget: { id: string };
@@ -30,10 +34,12 @@ interface EditBudgetForm {
 
 const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
   const { id } = route.params;
-  const { authState } = useAuth();
-  const { getBudgetById, updateBudget, isLoading: isApiLoading } = useBudget(
-    authState.token || '',
-  );
+  const authContext = useContext(AuthContext);
+  const {
+    getBudgetById,
+    updateBudget,
+    isLoading: isApiLoading,
+  } = useBudget(authContext?.userToken || '');
 
   const [formData, setFormData] = useState<EditBudgetForm>({
     category: 'food',
@@ -60,16 +66,12 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
         });
       }
     } catch (error: any) {
-      Alert.alert(
-        '❌ Lỗi',
-        error.message || 'Không tìm thấy ngân sách',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('BudgetList'),
-          },
-        ],
-      );
+      Alert.alert('❌ Lỗi', error.message || 'Không tìm thấy ngân sách', [
+        {
+          text: 'OK',
+          onPress: () => navigation.navigate('BudgetList'),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -164,7 +166,8 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
                   key={cat.value}
                   style={[
                     styles.categoryButton,
-                    formData.category === cat.value && styles.categoryButtonActive,
+                    formData.category === cat.value &&
+                      styles.categoryButtonActive,
                   ]}
                   onPress={() => handleInputChange('category', cat.value)}
                 >

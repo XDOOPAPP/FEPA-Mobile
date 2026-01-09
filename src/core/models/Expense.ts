@@ -1,4 +1,11 @@
-export type ExpenseCategory = 'food' | 'transport' | 'entertainment' | 'utilities' | 'health' | 'shopping' | 'other';
+export type ExpenseCategory =
+  | 'food'
+  | 'transport'
+  | 'entertainment'
+  | 'utilities'
+  | 'health'
+  | 'shopping'
+  | 'other';
 
 export const EXPENSE_CATEGORIES: { label: string; value: ExpenseCategory }[] = [
   { label: '🍔 Ăn uống', value: 'food' },

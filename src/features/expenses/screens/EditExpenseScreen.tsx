@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useContext } from 'react';
 import {
   View,
   TextInput,
@@ -12,9 +12,14 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useExpense, useAuth } from '../../../common/hooks/useMVVM';
+import { useExpense } from '../../../common/hooks/useMVVM';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FieldValidators } from '../../../utils/FormValidation';
+import { AuthContext } from '../../../store/AuthContext';
+import {
+  EXPENSE_CATEGORIES,
+  type ExpenseCategory,
+} from '../../../core/models/Expense';
 
 type RootStackParamList = {
   EditExpense: { id: string };
@@ -25,67 +30,50 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EditExpense'>;
 
 interface EditExpenseForm {
   amount: string;
-  category: string;
+  category: ExpenseCategory;
   description: string;
   date: Date;
 }
 
-const EXPENSE_CATEGORIES = [
-  '🍔 Ăn uống',
-  '🚗 Giao thông',
-  '🏠 Nhà cửa',
-  '🎓 Giáo dục',
-  '👗 Quần áo',
-  '💊 Sức khỏe',
-  '🎮 Giải trí',
-  '📱 Công nghệ',
-  '💳 Tài chính',
-  '🛒 Mua sắm',
-  '✈️ Du lịch',
-  '🎁 Quà tặng',
-];
-
 const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
   const { id } = route.params;
-  const { authState } = useAuth();
-  const { updateExpense, getExpenseById, expenseState } = useExpense(
-    authState.token || '',
+  const authContext = useContext(AuthContext);
+  const { updateExpense, getExpenseById, isLoading } = useExpense(
+    authContext?.userToken || '',
   );
 
   const [formData, setFormData] = useState<EditExpenseForm>({
     amount: '',
-    category: EXPENSE_CATEGORIES[0],
+    category: 'food',
     description: '',
     date: new Date(),
   });
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<Partial<EditExpenseForm>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [isApiLoading, setIsApiLoading] = useState(true);
 
   const loadExpenseDetail = useCallback(async () => {
-    setIsLoading(true);
+    setIsApiLoading(true);
     try {
       const expense = await getExpenseById(id);
       if (expense) {
         setFormData({
           amount: expense.amount.toString(),
-          category: `🍔 ${expense.category}`, // Assume emoji format
+          category: expense.category as ExpenseCategory,
           description: expense.description || '',
           date: new Date(expense.date),
         });
       }
     } catch (error: any) {
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage, [
+      Alert.alert('Lỗi', error?.message || 'Không thể tải chi tiêu', [
         {
           text: 'OK',
           onPress: () => navigation.navigate('ExpenseList'),
         },
       ]);
     } finally {
-      setIsLoading(false);
+      setIsApiLoading(false);
     }
   }, [id, getExpenseById, navigation]);
 
@@ -116,105 +104,25 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleUpdateExpense = useCallback(async () => {
     if (!validateForm()) return;
 
-    // Mock budget data - sẽ replace bằng real API sau
-    const mockBudgets = [
-      { category: '🍔 Ăn uống', limit: 5000000 },
-      { category: '🚗 Giao thông', limit: 2000000 },
-      { category: '🏠 Nhà cửa', limit: 10000000 },
-      { category: '🎓 Giáo dục', limit: 3000000 },
-      { category: '👗 Quần áo', limit: 3000000 },
-      { category: '💊 Sức khỏe', limit: 2000000 },
-      { category: '🎮 Giải trí', limit: 1500000 },
-    ];
-
-    // Mock expense data để tính spent (not including current expense)
-    const mockExpenses = [
-      { category: '🍔 Ăn uống', amount: 3200000 },
-      { category: '🚗 Giao thông', amount: 1800000 },
-    ];
-
-    const doSubmit = async () => {
-      try {
-        const categoryName = formData.category.split(' ')[1];
-        await updateExpense(id, {
-          title: formData.description.trim(),
-          amount: Number(formData.amount),
-          category: categoryName as any,
-          description: formData.description.trim(),
-          date: formData.date.toISOString(),
-        });
-
-        Alert.alert('✅ Thành công', 'Cập nhật chi tiêu thành công!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('ExpenseList');
-            },
-          },
-        ]);
-      } catch (error: any) {
-        const errorMessage = ErrorHandler.parseApiError(error);
-        const errorTitle = ErrorHandler.getErrorTitle(error);
-        Alert.alert(errorTitle, errorMessage);
-      }
-    };
-
     try {
-      const expenseCategory = formData.category;
-      const expenseAmount = Number(formData.amount);
+      await updateExpense(id, {
+        title: formData.description.trim(),
+        amount: Number(formData.amount),
+        category: formData.category,
+        description: formData.description.trim(),
+        date: formData.date.toISOString(),
+      });
 
-      // Check budget
-      const budget = mockBudgets.find(b => b.category === expenseCategory);
-      if (budget) {
-        const currentSpent = mockExpenses
-          .filter(e => e.category === expenseCategory)
-          .reduce((sum, e) => sum + e.amount, 0);
-
-        const totalSpent = currentSpent + expenseAmount;
-        const percentage = (totalSpent / budget.limit) * 100;
-
-        if (percentage > 100) {
-          // Vượt budget - alert warning
-          Alert.alert(
-            '⚠️ Cảnh báo ngân sách',
-            `Chi tiêu này sẽ vượt quá ngân sách cho "${expenseCategory}"!\n\nNgân sách: ${budget.limit.toLocaleString(
-              'vi-VN',
-            )}₫\nSẽ chi: ${totalSpent.toLocaleString('vi-VN')}₫\nVượt: ${(
-              totalSpent - budget.limit
-            ).toLocaleString('vi-VN')}₫\n\nBạn vẫn muốn tiếp tục?`,
-            [
-              { text: 'Hủy', onPress: () => {}, style: 'cancel' },
-              {
-                text: 'Tiếp tục',
-                onPress: doSubmit,
-                style: 'destructive',
-              },
-            ],
-          );
-          return;
-        } else if (percentage > 80) {
-          // Cảnh báo khi sắp hết ngân sách
-          Alert.alert(
-            '🔔 Cảnh báo ngân sách',
-            `Chi tiêu của bạn sẽ sử dụng ${Math.round(
-              percentage,
-            )}% ngân sách cho "${expenseCategory}".`,
-            [
-              { text: 'Hủy', onPress: () => {}, style: 'cancel' },
-              {
-                text: 'Tiếp tục',
-                onPress: doSubmit,
-              },
-            ],
-          );
-          return;
-        }
-      }
-
-      // Nếu ok, submit
-      await doSubmit();
-    } catch {
-      Alert.alert('Lỗi', 'Không thể cập nhật chi tiêu');
+      Alert.alert('✅ Thành công', 'Cập nhật chi tiêu thành công!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate('ExpenseList');
+          },
+        },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Lỗi', error?.message || 'Không thể cập nhật chi tiêu');
     }
   }, [formData, id, updateExpense, validateForm, navigation]);
 
@@ -245,7 +153,7 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  if (isLoading) {
+  if (isApiLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2196F3" />
@@ -276,7 +184,7 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
               placeholder="Nhập số tiền"
               placeholderTextColor="#999"
               keyboardType="decimal-pad"
-              editable={!expenseState.isLoading}
+              editable={!isLoading}
               value={formData.amount}
               onChangeText={value => handleInputChange('amount', value)}
             />
@@ -295,21 +203,22 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
             >
               {EXPENSE_CATEGORIES.map(cat => (
                 <TouchableOpacity
-                  key={cat}
+                  key={cat.value}
                   style={[
                     styles.categoryButton,
-                    formData.category === cat && styles.categoryButtonActive,
+                    formData.category === cat.value &&
+                      styles.categoryButtonActive,
                   ]}
-                  onPress={() => handleInputChange('category', cat)}
+                  onPress={() => handleInputChange('category', cat.value)}
                 >
                   <Text
                     style={[
                       styles.categoryButtonText,
-                      formData.category === cat &&
+                      formData.category === cat.value &&
                         styles.categoryButtonTextActive,
                     ]}
                   >
-                    {cat}
+                    {cat.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -323,7 +232,7 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
               style={[styles.input, errors.description && styles.inputError]}
               placeholder="Ví dụ: Cơm trưa tại nhà hàng XYZ"
               placeholderTextColor="#999"
-              editable={!expenseState.isLoading}
+              editable={!isLoading}
               value={formData.description}
               onChangeText={value => handleInputChange('description', value)}
               multiline
@@ -358,14 +267,11 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
 
           {/* Nút Cập nhật */}
           <TouchableOpacity
-            style={[
-              styles.updateButton,
-              expenseState.isLoading && styles.buttonDisabled,
-            ]}
+            style={[styles.updateButton, isLoading && styles.buttonDisabled]}
             onPress={handleUpdateExpense}
-            disabled={expenseState.isLoading}
+            disabled={isLoading}
           >
-            {expenseState.isLoading ? (
+            {isLoading ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <Text style={styles.buttonText}>Cập nhật chi tiêu</Text>
@@ -376,7 +282,7 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => navigation.navigate('ExpenseList')}
-            disabled={expenseState.isLoading}
+            disabled={isLoading}
           >
             <Text style={styles.cancelButtonText}>Hủy</Text>
           </TouchableOpacity>
