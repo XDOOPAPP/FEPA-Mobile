@@ -11,7 +11,6 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
-  Image,
 } from 'react-native';
 // Try to import camera, but it may fail on some devices
 let Camera: any = null;
@@ -82,8 +81,9 @@ const ReceiptOCRScreen: React.FC = () => {
   ]);
 
   const cameraRef = useRef<any>(null);
+  // useCameraDevice hook must be called unconditionally
   const device = useCameraDevice ? useCameraDevice('back') : null;
-  const cameraAvailable = !!(Camera && useCameraDevice && device);
+  const cameraAvailable = !!(Camera && device);
 
   // Request camera permission
   useEffect(() => {
@@ -129,7 +129,7 @@ const ReceiptOCRScreen: React.FC = () => {
 
     try {
       // Simulate 2-second scan time for actual camera processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(() => resolve(null), 2000));
 
       // Mock OCR result - in production, this would use ML Kit or similar
       const mockScannedData: ScannedReceipt = {
@@ -265,7 +265,9 @@ const ReceiptOCRScreen: React.FC = () => {
           ) : (
             <View style={styles.simulatedCameraContainer}>
               <View style={styles.simulatedCamera}>
-                <Text style={styles.simulatedCameraText}>📱 Mô phỏng Camera</Text>
+                <Text style={styles.simulatedCameraText}>
+                  📱 Mô phỏng Camera
+                </Text>
                 <Text style={styles.simulatedCameraSubtext}>
                   {isScanning ? '⏳ Quét hóa đơn...' : 'Chờ để quét'}
                 </Text>
@@ -279,15 +281,6 @@ const ReceiptOCRScreen: React.FC = () => {
                   {isScanning ? '📸 Đang quét...' : 'Chế độ mô phỏng'}
                 </Text>
               </View>
-            </View>
-          )}
-                style={styles.permissionButton}
-                onPress={() => setActiveTab('history')}
-              >
-                <Text style={styles.permissionButtonText}>
-                  Xem lịch sử thay vào
-                </Text>
-              </TouchableOpacity>
             </View>
           )}
 

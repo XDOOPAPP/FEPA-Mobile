@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useBaseViewModel, ViewModelState } from './BaseViewModel';
 import {
   Expense,
@@ -25,11 +25,11 @@ export const useExpenseViewModel = (token: string | null) => {
   });
 
   // Set auth token
-  useState(() => {
+  useEffect(() => {
     if (token) {
       expenseRepository.setAuthToken(token);
     }
-  });
+  }, [token]);
 
   // Get Expenses
   const getExpenses = useCallback(

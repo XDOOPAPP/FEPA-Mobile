@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../../common/hooks/useMVVM';
+import ErrorHandler from '../../../utils/ErrorHandler';
 
 type RootStackParamList = {
   Login: undefined;
@@ -43,10 +44,14 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
       newErrors.otp = 'Mã OTP phải là 6 chữ số';
     }
 
-    if (!newPassword.trim()) {
-      newErrors.password = 'Mật khẩu mới không được bỏ trống';
-    } else if (newPassword.length < 8) {
-      newErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự';
+    const passwordError = ErrorHandler.validatePassword(newPassword);
+    if (passwordError) {
+      // For reset, we want at least 8 chars
+      if (!newPassword.trim()) {
+        newErrors.password = 'Mật khẩu mới không được bỏ trống';
+      } else if (newPassword.length < 8) {
+        newErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự';
+      }
     }
 
     if (!confirmPassword.trim()) {
@@ -67,7 +72,7 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
     try {
       await resetPassword(email, otp, newPassword);
       Alert.alert(
-        'Thành công',
+        '✅ Thành công',
         'Mật khẩu của bạn đã được cập nhật. Vui lòng đăng nhập lại.',
         [
           {
@@ -79,7 +84,9 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
         ],
       );
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể đặt lại mật khẩu');
+      const errorMessage = ErrorHandler.parseApiError(error);
+      const errorTitle = ErrorHandler.getErrorTitle(error);
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -89,9 +96,11 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
     setIsLoading(true);
     try {
       await resendOtp(email);
-      Alert.alert('Thành công', 'OTP mới đã được gửi đến email của bạn.');
+      Alert.alert('📧 Thành công', 'OTP mới đã được gửi đến email của bạn.');
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể gửi lại OTP');
+      const errorMessage = ErrorHandler.parseApiError(error);
+      const errorTitle = ErrorHandler.getErrorTitle(error);
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setIsLoading(false);
     }

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../../common/hooks/useMVVM';
+import ErrorHandler from '../../../utils/ErrorHandler';
 
 type RootStackParamList = {
   Login: undefined;
@@ -30,15 +31,12 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 
   // Validate email
   const validateEmail = useCallback(() => {
+    const emailError = ErrorHandler.validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return false;
+    }
     setError('');
-    if (!email.trim()) {
-      setError('Email không được bỏ trống');
-      return false;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Email không hợp lệ');
-      return false;
-    }
     return true;
   }, [email]);
 
@@ -50,7 +48,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await forgotPassword(email.trim());
       Alert.alert(
-        'Thành công',
+        '📧 Thành công',
         `OTP đã được gửi đến ${email}. Vui lòng kiểm tra email của bạn.`,
         [
           {
@@ -62,7 +60,9 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         ],
       );
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể gửi OTP');
+      const errorMessage = ErrorHandler.parseApiError(err);
+      const errorTitle = ErrorHandler.getErrorTitle(err);
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setIsLoading(false);
     }

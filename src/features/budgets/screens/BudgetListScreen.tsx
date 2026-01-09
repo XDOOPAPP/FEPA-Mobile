@@ -135,19 +135,27 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <TouchableOpacity
         style={styles.budgetCard}
-        onPress={() => navigation.navigate('EditBudget', { id: item.id })}
+        onPress={() => navigation.navigate('BudgetDetail', { id: item.id })}
       >
         <View style={styles.budgetHeader}>
           <View>
             <Text style={styles.budgetCategory}>{item.category}</Text>
             <Text style={styles.budgetMonth}>{item.month}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={() => handleDelete(item.id, item.category)}
-          >
-            <Text style={styles.deleteBtnText}>Xóa</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => navigation.navigate('EditBudget', { id: item.id })}
+            >
+              <Text style={styles.editBtnText}>Sửa</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={() => handleDelete(item.id, item.category)}
+            >
+              <Text style={styles.deleteBtnText}>Xóa</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Progress Bar */}
@@ -277,6 +285,21 @@ const styles = StyleSheet.create({
   budgetMonth: {
     fontSize: 12,
     color: '#999',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editBtn: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  editBtnText: {
+    color: '#1976D2',
+    fontSize: 12,
+    fontWeight: '600',
   },
   deleteBtn: {
     backgroundColor: '#FFEBEE',

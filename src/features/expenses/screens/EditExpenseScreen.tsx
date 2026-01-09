@@ -14,6 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useExpense, useAuth } from '../../../common/hooks/useMVVM';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { FieldValidators } from '../../../utils/FormValidation';
 
 type RootStackParamList = {
   EditExpense: { id: string };
@@ -62,11 +63,6 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
   const [errors, setErrors] = useState<Partial<EditExpenseForm>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // Lấy thông tin chi tiêu khi load
-  useEffect(() => {
-    loadExpenseDetail();
-  }, []);
-
   const loadExpenseDetail = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -75,32 +71,41 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
         setFormData({
           amount: expense.amount.toString(),
           category: `🍔 ${expense.category}`, // Assume emoji format
-          description: expense.description,
+          description: expense.description || '',
           date: new Date(expense.date),
         });
       }
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể tải chi tiêu');
-      navigation.navigate('ExpenseList');
+    } catch (error: any) {
+      const errorMessage = ErrorHandler.parseApiError(error);
+      const errorTitle = ErrorHandler.getErrorTitle(error);
+      Alert.alert(errorTitle, errorMessage, [
+        {
+          text: 'OK',
+          onPress: () => navigation.navigate('ExpenseList'),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   }, [id, getExpenseById, navigation]);
 
+  // Lấy thông tin chi tiêu khi load
+  useEffect(() => {
+    loadExpenseDetail();
+  }, [loadExpenseDetail]);
+
   // Xác thực form
   const validateForm = useCallback(() => {
     const newErrors: Partial<EditExpenseForm> = {};
 
-    if (!formData.amount.trim()) {
-      newErrors.amount = 'Số tiền không được bỏ trống';
-    } else if (isNaN(Number(formData.amount)) || Number(formData.amount) <= 0) {
-      newErrors.amount = 'Số tiền phải lớn hơn 0';
+    const amountError = FieldValidators.validateAmount(formData.amount);
+    if (amountError) {
+      newErrors.amount = amountError;
     }
 
-    if (!formData.description.trim()) {
-      newErrors.description = 'Ghi chú không được bỏ trống';
-    } else if (formData.description.length < 3) {
-      newErrors.description = 'Ghi chú phải có ít nhất 3 ký tự';
+    const descError = FieldValidators.validateDescription(formData.description);
+    if (descError) {
+      newErrors.description = descError;
     }
 
     setErrors(newErrors);
@@ -111,24 +116,105 @@ const EditExpenseScreen: React.FC<Props> = ({ navigation, route }) => {
   const handleUpdateExpense = useCallback(async () => {
     if (!validateForm()) return;
 
-    try {
-      await updateExpense(id, {
-        amount: Number(formData.amount),
-        category: formData.category.split(' ')[1],
-        description: formData.description.trim(),
-        date: formData.date.toISOString(),
-      });
+    // Mock budget data - sẽ replace bằng real API sau
+    const mockBudgets = [
+      { category: '🍔 Ăn uống', limit: 5000000 },
+      { category: '🚗 Giao thông', limit: 2000000 },
+      { category: '🏠 Nhà cửa', limit: 10000000 },
+      { category: '🎓 Giáo dục', limit: 3000000 },
+      { category: '👗 Quần áo', limit: 3000000 },
+      { category: '💊 Sức khỏe', limit: 2000000 },
+      { category: '🎮 Giải trí', limit: 1500000 },
+    ];
 
-      Alert.alert('Thành công', 'Cập nhật chi tiêu thành công!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.navigate('ExpenseList');
+    // Mock expense data để tính spent (not including current expense)
+    const mockExpenses = [
+      { category: '🍔 Ăn uống', amount: 3200000 },
+      { category: '🚗 Giao thông', amount: 1800000 },
+    ];
+
+    const doSubmit = async () => {
+      try {
+        const categoryName = formData.category.split(' ')[1];
+        await updateExpense(id, {
+          title: formData.description.trim(),
+          amount: Number(formData.amount),
+          category: categoryName as any,
+          description: formData.description.trim(),
+          date: formData.date.toISOString(),
+        });
+
+        Alert.alert('✅ Thành công', 'Cập nhật chi tiêu thành công!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('ExpenseList');
+            },
           },
-        },
-      ]);
-    } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể cập nhật chi tiêu');
+        ]);
+      } catch (error: any) {
+        const errorMessage = ErrorHandler.parseApiError(error);
+        const errorTitle = ErrorHandler.getErrorTitle(error);
+        Alert.alert(errorTitle, errorMessage);
+      }
+    };
+
+    try {
+      const expenseCategory = formData.category;
+      const expenseAmount = Number(formData.amount);
+
+      // Check budget
+      const budget = mockBudgets.find(b => b.category === expenseCategory);
+      if (budget) {
+        const currentSpent = mockExpenses
+          .filter(e => e.category === expenseCategory)
+          .reduce((sum, e) => sum + e.amount, 0);
+
+        const totalSpent = currentSpent + expenseAmount;
+        const percentage = (totalSpent / budget.limit) * 100;
+
+        if (percentage > 100) {
+          // Vượt budget - alert warning
+          Alert.alert(
+            '⚠️ Cảnh báo ngân sách',
+            `Chi tiêu này sẽ vượt quá ngân sách cho "${expenseCategory}"!\n\nNgân sách: ${budget.limit.toLocaleString(
+              'vi-VN',
+            )}₫\nSẽ chi: ${totalSpent.toLocaleString('vi-VN')}₫\nVượt: ${(
+              totalSpent - budget.limit
+            ).toLocaleString('vi-VN')}₫\n\nBạn vẫn muốn tiếp tục?`,
+            [
+              { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+              {
+                text: 'Tiếp tục',
+                onPress: doSubmit,
+                style: 'destructive',
+              },
+            ],
+          );
+          return;
+        } else if (percentage > 80) {
+          // Cảnh báo khi sắp hết ngân sách
+          Alert.alert(
+            '🔔 Cảnh báo ngân sách',
+            `Chi tiêu của bạn sẽ sử dụng ${Math.round(
+              percentage,
+            )}% ngân sách cho "${expenseCategory}".`,
+            [
+              { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+              {
+                text: 'Tiếp tục',
+                onPress: doSubmit,
+              },
+            ],
+          );
+          return;
+        }
+      }
+
+      // Nếu ok, submit
+      await doSubmit();
+    } catch {
+      Alert.alert('Lỗi', 'Không thể cập nhật chi tiêu');
     }
   }, [formData, id, updateExpense, validateForm, navigation]);
 
