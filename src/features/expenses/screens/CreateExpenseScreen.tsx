@@ -15,6 +15,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useExpense, useAuth } from '../../../common/hooks/useMVVM';
 import { FieldValidators } from '../../../utils/FormValidation';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ExpenseCategory, EXPENSE_CATEGORIES } from '../../../core/models/Expense';
 
 type RootStackParamList = {
   CreateExpense: undefined;
@@ -25,33 +26,18 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CreateExpense'>;
 
 interface CreateExpenseForm {
   amount: string;
-  category: string;
+  category: ExpenseCategory;
   description: string;
   date: Date;
 }
 
-const EXPENSE_CATEGORIES = [
-  '🍔 Ăn uống',
-  '🚗 Giao thông',
-  '🏠 Nhà cửa',
-  '🎓 Giáo dục',
-  '👗 Quần áo',
-  '💊 Sức khỏe',
-  '🎮 Giải trí',
-  '📱 Công nghệ',
-  '💳 Tài chính',
-  '🛒 Mua sắm',
-  '✈️ Du lịch',
-  '🎁 Quà tặng',
-];
-
 const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
   const { authState } = useAuth();
-  const { createExpense, expenseState } = useExpense(authState.token || '');
+  const { createExpense, isLoading } = useExpense(authState.token || '');
 
   const [formData, setFormData] = useState<CreateExpenseForm>({
     amount: '',
-    category: EXPENSE_CATEGORIES[0],
+    category: 'food',
     description: '',
     date: new Date(),
   });
@@ -77,111 +63,34 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // Xử lý tạo chi tiêu
+  // Xử lý tạo chi tiêu từ API
   const handleCreateExpense = useCallback(async () => {
     if (!validateForm()) return;
 
-    // Mock budget data - sẽ replace bằng real API sau
-    const mockBudgets = [
-      { category: '🍔 Ăn uống', limit: 5000000 },
-      { category: '🚗 Giao thông', limit: 2000000 },
-      { category: '🏠 Nhà cửa', limit: 10000000 },
-      { category: '🎓 Giáo dục', limit: 3000000 },
-      { category: '👗 Quần áo', limit: 3000000 },
-      { category: '💊 Sức khỏe', limit: 2000000 },
-      { category: '🎮 Giải trí', limit: 1500000 },
-    ];
-
-    // Mock expense data để tính spent
-    const mockExpenses = [
-      { category: '🍔 Ăn uống', amount: 3200000 },
-      { category: '🚗 Giao thông', amount: 1800000 },
-    ];
-
-    const doSubmit = async () => {
-      try {
-        const categoryName = formData.category.split(' ')[1];
-        await createExpense({
-          title: formData.description.trim(),
-          amount: Number(formData.amount),
-          category: categoryName as any,
-          description: formData.description.trim(),
-          date: formData.date.toISOString(),
-        });
-
-        Alert.alert('✅ Thành công', 'Thêm chi tiêu thành công!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('ExpenseList');
-            },
-          },
-        ]);
-      } catch (error: any) {
-        const errorMessage = ErrorHandler.parseApiError(error);
-        const errorTitle = ErrorHandler.getErrorTitle(error);
-        Alert.alert(errorTitle, errorMessage);
-      }
-    };
-
     try {
-      const expenseCategory = formData.category;
-      const expenseAmount = Number(formData.amount);
+      await createExpense({
+        title: formData.description,
+        amount: Number(formData.amount),
+        category: formData.category,
+        description: formData.description,
+        date: formData.date.toISOString(),
+      });
 
-      // Check budget
-      const budget = mockBudgets.find(b => b.category === expenseCategory);
-      if (budget) {
-        const currentSpent = mockExpenses
-          .filter(e => e.category === expenseCategory)
-          .reduce((sum, e) => sum + e.amount, 0);
-
-        const totalSpent = currentSpent + expenseAmount;
-        const percentage = (totalSpent / budget.limit) * 100;
-
-        if (percentage > 100) {
-          // Vượt budget - alert warning
-          Alert.alert(
-            '⚠️ Cảnh báo ngân sách',
-            `Chi tiêu này sẽ vượt quá ngân sách cho "${expenseCategory}"!\n\nNgân sách: ${budget.limit.toLocaleString(
-              'vi-VN',
-            )}₫\nSẽ chi: ${totalSpent.toLocaleString('vi-VN')}₫\nVượt: ${(
-              totalSpent - budget.limit
-            ).toLocaleString('vi-VN')}₫\n\nBạn vẫn muốn tiếp tục?`,
-            [
-              { text: 'Hủy', onPress: () => {}, style: 'cancel' },
-              {
-                text: 'Tiếp tục',
-                onPress: doSubmit,
-                style: 'destructive',
-              },
-            ],
-          );
-          return;
-        } else if (percentage > 80) {
-          // Cảnh báo khi sắp hết ngân sách
-          Alert.alert(
-            '🔔 Cảnh báo ngân sách',
-            `Chi tiêu của bạn sẽ sử dụng ${Math.round(
-              percentage,
-            )}% ngân sách cho "${expenseCategory}".`,
-            [
-              { text: 'Hủy', onPress: () => {}, style: 'cancel' },
-              {
-                text: 'Tiếp tục',
-                onPress: doSubmit,
-              },
-            ],
-          );
-          return;
-        }
-      }
-
-      // Nếu ok, submit
-      await doSubmit();
-    } catch {
-      Alert.alert('Lỗi', 'Không thể tạo chi tiêu');
+      Alert.alert('✅ Thành công', 'Tạo chi tiêu thành công!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate('ExpenseList');
+          },
+        },
+      ]);
+    } catch (error: any) {
+      Alert.alert(
+        '❌ Lỗi',
+        error.message || 'Lỗi tạo chi tiêu. Vui lòng thử lại.',
+      );
     }
-  }, [formData, validateForm, createExpense, navigation]);
+  }, [formData, validateForm, navigation, createExpense]);
 
   // Xử lý thay đổi ngày
   const handleDateChange = (event: any, selectedDate?: Date) => {
@@ -319,9 +228,9 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
               expenseState.isLoading && styles.buttonDisabled,
             ]}
             onPress={handleCreateExpense}
-            disabled={expenseState.isLoading}
+            disabled={isLoading}
           >
-            {expenseState.isLoading ? (
+            {isLoading ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <Text style={styles.buttonText}>Lưu chi tiêu</Text>
@@ -332,7 +241,7 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => navigation.navigate('ExpenseList')}
-            disabled={expenseState.isLoading}
+            disabled={isLoading}
           >
             <Text style={styles.cancelButtonText}>Hủy</Text>
           </TouchableOpacity>

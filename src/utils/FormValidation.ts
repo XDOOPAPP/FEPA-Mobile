@@ -202,7 +202,7 @@ export const ValidationSchemas = {
  * Create custom form validation rules
  */
 export const createValidationRules = (
-  schema: Record<string, any>
+  schema: Record<string, any>,
 ): Record<string, ValidationRule> => {
   const rules: Record<string, ValidationRule> = {};
 

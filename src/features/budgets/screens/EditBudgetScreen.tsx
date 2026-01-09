@@ -12,8 +12,9 @@ import {
   Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuth } from '../../../common/hooks/useMVVM';
+import { useAuth, useBudget } from '../../../common/hooks/useMVVM';
 import { FieldValidators } from '../../../utils/FormValidation';
+import { ExpenseCategory, EXPENSE_CATEGORIES } from '../../../core/models/Expense';
 
 type RootStackParamList = {
   EditBudget: { id: string };
@@ -23,31 +24,19 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'EditBudget'>;
 
 interface EditBudgetForm {
-  category: string;
+  category: ExpenseCategory;
   limit: string;
 }
-
-const BUDGET_CATEGORIES = [
-  '🍔 Ăn uống',
-  '🚗 Giao thông',
-  '🏠 Nhà cửa',
-  '🎓 Giáo dục',
-  '👗 Quần áo',
-  '💊 Sức khỏe',
-  '🎮 Giải trí',
-  '📱 Công nghệ',
-  '💳 Tài chính',
-  '🛒 Mua sắm',
-  '✈️ Du lịch',
-  '🎁 Quà tặng',
-];
 
 const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
   const { id } = route.params;
   const { authState } = useAuth();
+  const { getBudgetById, updateBudget, isLoading: isApiLoading } = useBudget(
+    authState.token || '',
+  );
 
   const [formData, setFormData] = useState<EditBudgetForm>({
-    category: BUDGET_CATEGORIES[0],
+    category: 'food',
     limit: '',
   });
 
@@ -63,42 +52,28 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
   const loadBudgetDetail = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Mock data - sẽ replace bằng real API sau
-      const mockBudgets = [
-        { id: '1', category: '🍔 Ăn uống', limit: 5000000 },
-        { id: '2', category: '🚗 Giao thông', limit: 2000000 },
-        { id: '3', category: '🏠 Nhà cửa', limit: 10000000 },
-      ];
-
-      const budget = mockBudgets.find(b => b.id === id);
+      const budget = await getBudgetById(id);
       if (budget) {
         setFormData({
-          category: budget.category,
+          category: budget.category as ExpenseCategory,
           limit: budget.limit.toString(),
         });
-      } else {
-        const errorTitle = '❌ Lỗi';
-        const errorMessage = 'Không tìm thấy ngân sách';
-        Alert.alert(errorTitle, errorMessage, [
+      }
+    } catch (error: any) {
+      Alert.alert(
+        '❌ Lỗi',
+        error.message || 'Không tìm thấy ngân sách',
+        [
           {
             text: 'OK',
             onPress: () => navigation.navigate('BudgetList'),
           },
-        ]);
-      }
-    } catch (error: any) {
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage, [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('BudgetList'),
-        },
-      ]);
+        ],
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [id, navigation]);
+  }, [id, getBudgetById, navigation]);
 
   // Validation
   const validateForm = useCallback(() => {
@@ -113,14 +88,14 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // Handle update
+  // Handle update từ API
   const handleUpdateBudget = useCallback(async () => {
     if (!validateForm()) return;
 
-    setIsSaving(true);
     try {
-      // Mock update - sẽ replace bằng real API sau
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await updateBudget(id, {
+        limit: Number(formData.limit),
+      });
 
       Alert.alert('✅ Thành công', 'Cập nhật ngân sách thành công!', [
         {
@@ -131,13 +106,12 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
         },
       ]);
     } catch (error: any) {
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage);
-    } finally {
-      setIsSaving(false);
+      Alert.alert(
+        '❌ Lỗi',
+        error.message || 'Lỗi cập nhật ngân sách. Vui lòng thử lại.',
+      );
     }
-  }, [formData, validateForm, navigation]);
+  }, [formData, validateForm, navigation, id, updateBudget]);
 
   const handleInputChange = (field: keyof EditBudgetForm, value: string) => {
     setFormData(prev => ({
@@ -185,23 +159,23 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
               showsHorizontalScrollIndicator={false}
               style={styles.categoryScroll}
             >
-              {BUDGET_CATEGORIES.map(cat => (
+              {EXPENSE_CATEGORIES.map(cat => (
                 <TouchableOpacity
-                  key={cat}
+                  key={cat.value}
                   style={[
                     styles.categoryButton,
-                    formData.category === cat && styles.categoryButtonActive,
+                    formData.category === cat.value && styles.categoryButtonActive,
                   ]}
-                  onPress={() => handleInputChange('category', cat)}
+                  onPress={() => handleInputChange('category', cat.value)}
                 >
                   <Text
                     style={[
                       styles.categoryButtonText,
-                      formData.category === cat &&
+                      formData.category === cat.value &&
                         styles.categoryButtonTextActive,
                     ]}
                   >
-                    {cat}
+                    {cat.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -216,7 +190,7 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
               placeholder="Nhập hạn mức"
               placeholderTextColor="#999"
               keyboardType="decimal-pad"
-              editable={!isSaving}
+              editable={!isApiLoading}
               value={formData.limit}
               onChangeText={value => handleInputChange('limit', value)}
             />
@@ -234,7 +208,7 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
             onPress={handleUpdateBudget}
             disabled={isSaving}
           >
-            {isSaving ? (
+            {isApiLoading ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <Text style={styles.buttonText}>Cập nhật ngân sách</Text>
@@ -245,7 +219,7 @@ const EditBudgetScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => navigation.navigate('BudgetList')}
-            disabled={isSaving}
+            disabled={isApiLoading}
           >
             <Text style={styles.cancelButtonText}>Hủy</Text>
           </TouchableOpacity>

@@ -10,47 +10,27 @@ import {
   Dimensions,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useAuth, useBudget, useExpense } from '../../../common/hooks/useMVVM';
+import { Budget } from '../../../core/models/Budget';
+import { Expense } from '../../../core/models/Expense';
 
 type RootStackParamList = {
   BudgetDetail: { id: string };
   BudgetList: undefined;
+  EditBudget: { id: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BudgetDetail'>;
 
-interface Budget {
-  id: string;
-  category: string;
-  limit: number;
-  month: string;
-}
-
-interface Expense {
-  id: string;
-  amount: number;
-  description: string;
-  date: string;
-}
-
 const BudgetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { id } = route.params;
+  const { authState } = useAuth();
+  const { getBudgetById, deleteBudget } = useBudget(authState.token || '');
+  const { getExpenses } = useExpense(authState.token || '');
+
   const [budget, setBudget] = useState<Budget | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Mock data
-  const mockBudgets: Budget[] = [
-    { id: '1', category: '🍔 Ăn uống', limit: 5000000, month: 'Tháng 1' },
-    { id: '2', category: '🚗 Giao thông', limit: 2000000, month: 'Tháng 1' },
-    { id: '3', category: '🏠 Nhà cửa', limit: 10000000, month: 'Tháng 1' },
-  ];
-
-  const mockExpenses: Expense[] = [
-    { id: '1', amount: 150000, description: 'Cơm trưa', date: '2026-01-10' },
-    { id: '2', amount: 300000, description: 'Ăn tối', date: '2026-01-10' },
-    { id: '3', amount: 120000, description: 'Cà phê', date: '2026-01-09' },
-    { id: '4', amount: 80000, description: 'Bánh mì', date: '2026-01-08' },
-  ];
 
   useEffect(() => {
     loadBudgetDetail();
@@ -59,24 +39,22 @@ const BudgetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const loadBudgetDetail = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Giả lập API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Load budget detail từ API
+      const budgetData = await getBudgetById(id);
+      setBudget(budgetData);
 
-      const foundBudget = mockBudgets.find(b => b.id === id);
-      if (foundBudget) {
-        setBudget(foundBudget);
-        // Filter expenses cho budget này
-        setExpenses(mockExpenses);
-      } else {
-        Alert.alert('❌ Lỗi', 'Không tìm thấy ngân sách');
-        navigation.goBack();
-      }
-    } catch (error) {
-      Alert.alert('❌ Lỗi', 'Không thể tải chi tiết ngân sách');
+      // Load expenses từ API
+      const expensesData = await getExpenses({
+        category: budgetData.category as any,
+      });
+      setExpenses(expensesData || []);
+    } catch (error: any) {
+      Alert.alert('❌ Lỗi', error.message || 'Không thể tải chi tiết ngân sách');
+      navigation.goBack();
     } finally {
       setIsLoading(false);
     }
-  }, [id, navigation]);
+  }, [id, getBudgetById, getExpenses, navigation]);
 
   if (isLoading) {
     return (
@@ -251,9 +229,21 @@ const BudgetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 { text: 'Hủy', style: 'cancel' },
                 {
                   text: 'Xóa',
-                  onPress: () => {
-                    Alert.alert('✅ Thành công', 'Ngân sách đã được xóa!');
-                    navigation.goBack();
+                  onPress: async () => {
+                    try {
+                      await deleteBudget(id);
+                      Alert.alert('✅ Thành công', 'Ngân sách đã được xóa!', [
+                        {
+                          text: 'OK',
+                          onPress: () => navigation.goBack(),
+                        },
+                      ]);
+                    } catch (error: any) {
+                      Alert.alert(
+                        '❌ Lỗi',
+                        error.message || 'Lỗi xóa ngân sách',
+                      );
+                    }
                   },
                   style: 'destructive',
                 },

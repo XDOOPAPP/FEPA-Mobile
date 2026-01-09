@@ -14,9 +14,10 @@ export interface Budget {
 export interface CreateBudgetRequest {
   category: string;
   limit: number;
-  period: 'monthly' | 'yearly';
-  startDate: string;
-  endDate: string;
+  month?: string; // Format: YYYY-MM
+  period?: 'monthly' | 'yearly';
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface UpdateBudgetRequest {

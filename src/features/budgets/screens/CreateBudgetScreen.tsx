@@ -12,8 +12,9 @@ import {
   Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuth } from '../../../common/hooks/useMVVM';
+import { useAuth, useBudget } from '../../../common/hooks/useMVVM';
 import { FieldValidators } from '../../../utils/FormValidation';
+import { ExpenseCategory, EXPENSE_CATEGORIES } from '../../../core/models/Expense';
 
 type RootStackParamList = {
   CreateBudget: undefined;
@@ -23,30 +24,28 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateBudget'>;
 
 interface CreateBudgetForm {
-  category: string;
+  category: ExpenseCategory;
   limit: string;
+  month: string;
 }
-
-const BUDGET_CATEGORIES = [
-  '🍔 Ăn uống',
-  '🚗 Giao thông',
-  '🏠 Nhà cửa',
-  '🎓 Giáo dục',
-  '👗 Quần áo',
-  '💊 Sức khỏe',
-  '🎮 Giải trí',
-  '📱 Công nghệ',
-  '💳 Tài chính',
-  '🛒 Mua sắm',
-  '✈️ Du lịch',
-  '🎁 Quà tặng',
-];
 
 const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
   const { authState } = useAuth();
+  const { createBudget, isLoading } = useBudget(authState.token || '');
+
+  // Get current month in YYYY-MM format
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}`;
+  };
+
   const [formData, setFormData] = useState<CreateBudgetForm>({
-    category: BUDGET_CATEGORIES[0],
+    category: 'food',
     limit: '',
+    month: getCurrentMonth(),
   });
 
   const [errors, setErrors] = useState<Partial<CreateBudgetForm>>({});
@@ -65,31 +64,32 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // Xử lý tạo ngân sách
+  // Xử lý tạo ngân sách từ API
   const handleCreateBudget = useCallback(async () => {
     if (!validateForm()) return;
 
-    setIsLoading(true);
     try {
-      // Giả lập API call
-      setTimeout(() => {
-        Alert.alert('✅ Thành công', 'Tạo ngân sách thành công!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('BudgetList');
-            },
+      await createBudget({
+        category: formData.category,
+        limit: Number(formData.limit),
+        month: formData.month,
+      });
+
+      Alert.alert('✅ Thành công', 'Tạo ngân sách thành công!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate('BudgetList');
           },
-        ]);
-        setIsLoading(false);
-      }, 500);
+        },
+      ]);
     } catch (error: any) {
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage);
-      setIsLoading(false);
+      Alert.alert(
+        '❌ Lỗi',
+        error.message || 'Lỗi tạo ngân sách. Vui lòng thử lại.',
+      );
     }
-  }, [formData, validateForm, navigation]);
+  }, [formData, validateForm, navigation, createBudget]);
 
   const handleInputChange = (field: keyof CreateBudgetForm, value: string) => {
     setFormData(prev => ({
@@ -128,23 +128,26 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               style={styles.categoryScroll}
             >
-              {BUDGET_CATEGORIES.map(cat => (
+              {EXPENSE_CATEGORIES.map(cat => (
                 <TouchableOpacity
-                  key={cat}
+                  key={cat.value}
                   style={[
                     styles.categoryButton,
-                    formData.category === cat && styles.categoryButtonActive,
+                    formData.category === cat.value &&
+                      styles.categoryButtonActive,
                   ]}
-                  onPress={() => handleInputChange('category', cat)}
+                  onPress={() =>
+                    handleInputChange('category', cat.value)
+                  }
                 >
                   <Text
                     style={[
                       styles.categoryButtonText,
-                      formData.category === cat &&
+                      formData.category === cat.value &&
                         styles.categoryButtonTextActive,
                     ]}
                   >
-                    {cat}
+                    {cat.label}
                   </Text>
                 </TouchableOpacity>
               ))}
