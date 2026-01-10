@@ -1,5 +1,4 @@
 import { useSubscription } from './SubscriptionViewModel';
-import type { SubscriptionTier } from '../models/Subscription';
 
 /**
  * Feature-gating hook for premium features
@@ -64,7 +63,9 @@ export const useFeatureGate = () => {
   /**
    * Check if feature is available
    */
-  const isFeatureAvailable = (featureKey: keyof typeof premiumFeatures): boolean => {
+  const isFeatureAvailable = (
+    featureKey: keyof typeof premiumFeatures,
+  ): boolean => {
     const feature = premiumFeatures[featureKey];
     if (!feature) return true;
 
@@ -95,7 +96,11 @@ export const useFeatureGate = () => {
   /**
    * Get remaining budget quota for free tier
    */
-  const getBudgetQuota = (): { used: number; total: number; remaining: number } => {
+  const getBudgetQuota = (): {
+    used: number;
+    total: number;
+    remaining: number;
+  } => {
     const total = premiumFeatures.unlimitedBudgets.freeLimit || 3;
     const used = 1; // TODO: Get actual budget count
     return {
@@ -108,7 +113,11 @@ export const useFeatureGate = () => {
   /**
    * Get remaining expense quota for free tier
    */
-  const getExpenseQuota = (): { used: number; total: number; remaining: number } => {
+  const getExpenseQuota = (): {
+    used: number;
+    total: number;
+    remaining: number;
+  } => {
     const total = premiumFeatures.unlimitedExpenses.freeLimit || 50;
     const used = 1; // TODO: Get actual expense count
     return {
@@ -121,7 +130,9 @@ export const useFeatureGate = () => {
   /**
    * Get feature restrictions message
    */
-  const getFeatureRestrictionMessage = (featureKey: keyof typeof premiumFeatures): string => {
+  const getFeatureRestrictionMessage = (
+    featureKey: keyof typeof premiumFeatures,
+  ): string => {
     const feature = premiumFeatures[featureKey];
     return feature?.description || 'Tính năng này cần nâng cấp';
   };
@@ -140,7 +151,9 @@ export const useFeatureGate = () => {
   /**
    * Check multiple features at once
    */
-  const checkFeatures = (featureKeys: (keyof typeof premiumFeatures)[]): boolean => {
+  const checkFeatures = (
+    featureKeys: (keyof typeof premiumFeatures)[],
+  ): boolean => {
     return featureKeys.every(key => isFeatureAvailable(key));
   };
 

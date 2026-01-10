@@ -86,10 +86,12 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
             text: 'Nâng cấp',
             onPress: () => {
               // Navigate to subscription plans
-              navigation.getParent()?.navigate('Profile', { screen: 'Subscription' });
+              navigation
+                .getParent()
+                ?.navigate('Profile', { screen: 'Subscription' });
             },
           },
-        ]
+        ],
       );
       return;
     }
@@ -117,7 +119,14 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
         error.message || 'Lỗi tạo ngân sách. Vui lòng thử lại.',
       );
     }
-  }, [formData, validateForm, navigation, createBudget, canCreateBudget, getBudgetQuota]);
+  }, [
+    formData,
+    validateForm,
+    navigation,
+    createBudget,
+    canCreateBudget,
+    getBudgetQuota,
+  ]);
 
   const handleInputChange = (field: keyof CreateBudgetForm, value: string) => {
     setFormData(prev => ({

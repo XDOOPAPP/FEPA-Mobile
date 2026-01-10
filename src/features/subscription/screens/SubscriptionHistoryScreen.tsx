@@ -1,13 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
-  Alert,
 } from 'react-native';
 import { useSubscription } from '../../../core/viewmodels/SubscriptionViewModel';
 import type { UserSubscription } from '../../../core/models/Subscription';
@@ -16,59 +14,22 @@ interface SubscriptionHistoryScreenProps {
   navigation: any;
 }
 
-export const SubscriptionHistoryScreen: React.FC<SubscriptionHistoryScreenProps> = ({
-  navigation,
-}) => {
+export const SubscriptionHistoryScreen: React.FC<
+  SubscriptionHistoryScreenProps
+> = ({ navigation }) => {
   const { subscriptionState, getHistory, isLoading, error } = useSubscription();
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       await getHistory();
     } catch (err) {
       console.error('Error loading subscription history:', err);
     }
-  };
+  }, [getHistory]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return '#27ae60';
-      case 'EXPIRED':
-        return '#e67e22';
-      case 'CANCELLED':
-        return '#e74c3c';
-      default:
-        return '#95a5a6';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'Đang hoạt động';
-      case 'EXPIRED':
-        return 'Hết hạn';
-      case 'CANCELLED':
-        return 'Đã hủy';
-      case 'INACTIVE':
-        return 'Không hoạt động';
-      default:
-        return status;
-    }
-  };
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   if (isLoading && subscriptionState.history.length === 0) {
     return (
@@ -110,7 +71,7 @@ export const SubscriptionHistoryScreen: React.FC<SubscriptionHistoryScreenProps>
           renderItem={({ item }) => <SubscriptionHistoryItem item={item} />}
           scrollEnabled={false}
           contentContainerStyle={styles.listContainer}
-          ListFooterComponent={<View style={{ height: 20 }} />}
+          ListFooterComponent={<View style={styles.listFooter} />}
         />
       )}
     </View>
@@ -121,7 +82,9 @@ interface SubscriptionHistoryItemProps {
   item: UserSubscription;
 }
 
-const SubscriptionHistoryItem: React.FC<SubscriptionHistoryItemProps> = ({ item }) => {
+const SubscriptionHistoryItem: React.FC<SubscriptionHistoryItemProps> = ({
+  item,
+}) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('vi-VN', {
@@ -163,13 +126,20 @@ const SubscriptionHistoryItem: React.FC<SubscriptionHistoryItemProps> = ({ item 
     <View style={styles.historyItem}>
       <View style={styles.itemHeader}>
         <View>
-          <Text style={styles.itemTier}>{item.tier === 'PREMIUM' ? '⭐ Premium' : '○ Free'}</Text>
+          <Text style={styles.itemTier}>
+            {item.tier === 'PREMIUM' ? '⭐ Premium' : '○ Free'}
+          </Text>
           <Text style={styles.itemDate}>
             {formatDate(item.startDate)}
             {item.endDate && ` - ${formatDate(item.endDate)}`}
           </Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+        <View
+          style={[
+            styles.statusBadge,
+            { backgroundColor: getStatusColor(item.status) },
+          ]}
+        >
           <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
         </View>
       </View>
@@ -181,7 +151,9 @@ const SubscriptionHistoryItem: React.FC<SubscriptionHistoryItemProps> = ({ item 
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Gia hạn tự động:</Text>
-          <Text style={styles.detailValue}>{item.autoRenew ? 'Có' : 'Không'}</Text>
+          <Text style={styles.detailValue}>
+            {item.autoRenew ? 'Có' : 'Không'}
+          </Text>
         </View>
         {item.plan && (
           <View style={styles.detailRow}>
@@ -320,6 +292,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#333',
     fontWeight: '500',
+  },
+  listFooter: {
+    height: 20,
   },
 });
 

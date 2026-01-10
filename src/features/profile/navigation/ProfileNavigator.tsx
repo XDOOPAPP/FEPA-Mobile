@@ -29,23 +29,23 @@ export const ProfileNavigator = () => {
       <Stack.Screen name="ProfileHome" component={ProfileScreen} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />
-      <Stack.Screen 
-        name="Subscription" 
+      <Stack.Screen
+        name="Subscription"
         component={PlansScreen}
         options={{ headerShown: true, title: 'Đăng ký' }}
       />
-      <Stack.Screen 
-        name="Plans" 
+      <Stack.Screen
+        name="Plans"
         component={PlansScreen}
         options={{ headerShown: true, title: 'Gói đăng ký' }}
       />
-      <Stack.Screen 
-        name="Payment" 
+      <Stack.Screen
+        name="Payment"
         component={PaymentScreen}
         options={{ headerShown: true, title: 'Thanh toán' }}
       />
-      <Stack.Screen 
-        name="SubscriptionHistory" 
+      <Stack.Screen
+        name="SubscriptionHistory"
         component={SubscriptionHistoryScreen}
         options={{ headerShown: true, title: 'Lịch sử đăng ký' }}
       />

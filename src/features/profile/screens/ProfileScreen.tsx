@@ -17,8 +17,11 @@ type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'>;
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const authContext = useContext(AuthContext);
-  const { subscriptionState, getCurrentSubscription, isLoading: subscriptionLoading } =
-    useSubscription();
+  const {
+    subscriptionState,
+    getCurrentSubscription,
+    isLoading: subscriptionLoading,
+  } = useSubscription();
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
 
   useEffect(() => {
@@ -110,8 +113,16 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Gói hiện tại</Text>
-              <Text style={[styles.infoValue, subscriptionState.currentSubscription?.tier === 'PREMIUM' && styles.premiumText]}>
-                {subscriptionState.currentSubscription?.tier === 'PREMIUM' ? '⭐ Premium' : '○ Free'}
+              <Text
+                style={[
+                  styles.infoValue,
+                  subscriptionState.currentSubscription?.tier === 'PREMIUM' &&
+                    styles.premiumText,
+                ]}
+              >
+                {subscriptionState.currentSubscription?.tier === 'PREMIUM'
+                  ? '⭐ Premium'
+                  : '○ Free'}
               </Text>
             </View>
             {subscriptionState.currentSubscription && (
@@ -119,7 +130,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.infoLabel}>Hết hạn</Text>
                 <Text style={styles.infoValue}>
                   {subscriptionState.currentSubscription.endDate
-                    ? new Date(subscriptionState.currentSubscription.endDate).toLocaleDateString('vi-VN')
+                    ? new Date(
+                        subscriptionState.currentSubscription.endDate,
+                      ).toLocaleDateString('vi-VN')
                     : 'Không có hạn'}
                 </Text>
               </View>
@@ -129,7 +142,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => navigation.navigate('Subscription')}
             >
               <Text style={styles.settingLabel}>
-                {subscriptionState.currentSubscription?.tier === 'PREMIUM' ? '📋 Quản lý' : '⬆️ Nâng cấp'}
+                {subscriptionState.currentSubscription?.tier === 'PREMIUM'
+                  ? '📋 Quản lý'
+                  : '⬆️ Nâng cấp'}
               </Text>
               <Text style={styles.arrow}>›</Text>
             </TouchableOpacity>

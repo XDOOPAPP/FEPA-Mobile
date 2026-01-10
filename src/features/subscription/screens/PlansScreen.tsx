@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,21 +16,26 @@ interface PlansScreenProps {
 }
 
 export const PlansScreen: React.FC<PlansScreenProps> = ({ navigation }) => {
-  const { subscriptionState, getPlans, getCurrentSubscription, isLoading, error } =
-    useSubscription();
+  const {
+    subscriptionState,
+    getPlans,
+    getCurrentSubscription,
+    isLoading,
+    error,
+  } = useSubscription();
   const [currentTier, setCurrentTier] = useState<string>('FREE');
 
-  useEffect(() => {
-    initializeData();
-  }, []);
-
-  const initializeData = async () => {
+  const initializeData = useCallback(async () => {
     try {
       await Promise.all([getPlans(), getCurrentSubscription()]);
     } catch (err) {
       console.error('Error loading subscription data:', err);
     }
-  };
+  }, [getPlans, getCurrentSubscription]);
+
+  useEffect(() => {
+    initializeData();
+  }, [initializeData]);
 
   useEffect(() => {
     if (subscriptionState.currentSubscription) {
@@ -71,7 +76,9 @@ export const PlansScreen: React.FC<PlansScreenProps> = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Gói đăng ký</Text>
         <Text style={styles.headerSubtitle}>
-          {currentTier === 'PREMIUM' ? '✓ Bạn đang dùng Premium' : 'Nâng cấp lên Premium'}
+          {currentTier === 'PREMIUM'
+            ? '✓ Bạn đang dùng Premium'
+            : 'Nâng cấp lên Premium'}
         </Text>
       </View>
 
@@ -124,7 +131,9 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isActive, onSelect }) => {
 
       <View style={styles.priceContainer}>
         <Text style={styles.price}>{formatPrice(plan.price)}</Text>
-        <Text style={styles.billingPeriod}>/{plan.billingPeriod === 'MONTHLY' ? 'tháng' : 'năm'}</Text>
+        <Text style={styles.billingPeriod}>
+          /{plan.billingPeriod === 'MONTHLY' ? 'tháng' : 'năm'}
+        </Text>
       </View>
 
       <View style={styles.featuresContainer}>
@@ -142,7 +151,12 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isActive, onSelect }) => {
         onPress={onSelect}
         disabled={isActive}
       >
-        <Text style={[styles.selectButtonText, isActive && styles.selectButtonTextActive]}>
+        <Text
+          style={[
+            styles.selectButtonText,
+            isActive && styles.selectButtonTextActive,
+          ]}
+        >
           {isActive ? 'Gói hiện tại' : 'Chọn gói'}
         </Text>
       </TouchableOpacity>

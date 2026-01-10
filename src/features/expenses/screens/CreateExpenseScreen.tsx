@@ -86,10 +86,12 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
             text: 'Nâng cấp',
             onPress: () => {
               // Navigate to subscription plans
-              navigation.getParent()?.navigate('Profile', { screen: 'Subscription' });
+              navigation
+                .getParent()
+                ?.navigate('Profile', { screen: 'Subscription' });
             },
           },
-        ]
+        ],
       );
       return;
     }
@@ -119,7 +121,14 @@ const CreateExpenseScreen: React.FC<Props> = ({ navigation }) => {
         error.message || 'Lỗi tạo chi tiêu. Vui lòng thử lại.',
       );
     }
-  }, [formData, validateForm, navigation, createExpense, canCreateExpense, getExpenseQuota]);
+  }, [
+    formData,
+    validateForm,
+    navigation,
+    createExpense,
+    canCreateExpense,
+    getExpenseQuota,
+  ]);
 
   // Xử lý thay đổi ngày
   const handleDateChange = (event: any, selectedDate?: Date) => {

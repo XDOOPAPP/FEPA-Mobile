@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSubscription } from '../../../core/viewmodels/SubscriptionViewModel';
-import { useAuth } from '../../../auth/hook/useAuth';
+import { AuthContext } from '../../../store/AuthContext';
 import type { SubscriptionPlan } from '../../../core/models/Subscription';
 
 interface PaymentScreenProps {
@@ -18,10 +18,16 @@ interface PaymentScreenProps {
   route: any;
 }
 
-export const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
-  const { planId, plan } = route.params as { planId: string; plan: SubscriptionPlan };
+export const PaymentScreen: React.FC<PaymentScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const { planId, plan } = route.params as {
+    planId: string;
+    plan: SubscriptionPlan;
+  };
   const { createPayment, isLoading, error } = useSubscription();
-  const { state: authState } = useAuth();
+  const authContext = useContext(AuthContext);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
 
   const handlePayment = async () => {
@@ -62,14 +68,17 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route 
                   }, 2000);
                 },
               },
-            ]
+            ],
           );
         } else {
           Alert.alert('Lỗi', 'Không thể mở VNPay');
           setPaymentInitiated(false);
         }
       } else {
-        Alert.alert('Thành công', 'Thanh toán đã được tạo. Vui lòng kiểm tra email để hoàn tất.');
+        Alert.alert(
+          'Thành công',
+          'Thanh toán đã được tạo. Vui lòng kiểm tra email để hoàn tất.',
+        );
         navigation.goBack();
       }
     } catch (err) {
@@ -140,16 +149,18 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route 
         )}
 
         {/* User Info */}
-        {authState.user && (
+        {authContext?.user && (
           <View style={styles.userCard}>
             <Text style={styles.userCardTitle}>Thông tin tài khoản</Text>
             <View style={styles.userRow}>
               <Text style={styles.userLabel}>Email:</Text>
-              <Text style={styles.userValue}>{authState.user.email}</Text>
+              <Text style={styles.userValue}>{authContext.user.email}</Text>
             </View>
             <View style={styles.userRow}>
               <Text style={styles.userLabel}>Họ tên:</Text>
-              <Text style={styles.userValue}>{authState.user.fullName || 'N/A'}</Text>
+              <Text style={styles.userValue}>
+                {authContext.user.fullName || 'N/A'}
+              </Text>
             </View>
           </View>
         )}
@@ -170,28 +181,36 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route 
             </View>
             <View style={styles.methodInfo}>
               <Text style={styles.methodName}>VNPay</Text>
-              <Text style={styles.methodDesc}>Chuyển khoản, ví điện tử, thẻ ngân hàng</Text>
+              <Text style={styles.methodDesc}>
+                Chuyển khoản, ví điện tử, thẻ ngân hàng
+              </Text>
             </View>
           </View>
         </View>
 
         {/* Payment Button */}
         <TouchableOpacity
-          style={[styles.paymentButton, (isLoading || paymentInitiated) && styles.paymentButtonDisabled]}
+          style={[
+            styles.paymentButton,
+            (isLoading || paymentInitiated) && styles.paymentButtonDisabled,
+          ]}
           onPress={handlePayment}
           disabled={isLoading || paymentInitiated}
         >
           {isLoading || paymentInitiated ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.paymentButtonText}>Thanh toán {formatPrice(plan.price)}</Text>
+            <Text style={styles.paymentButtonText}>
+              Thanh toán {formatPrice(plan.price)}
+            </Text>
           )}
         </TouchableOpacity>
 
         {/* Info Text */}
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>
-            Bằng cách nhấn "Thanh toán", bạn đồng ý với điều khoản dịch vụ và chính sách bảo mật của chúng tôi.
+            Bằng cách nhấn "Thanh toán", bạn đồng ý với điều khoản dịch vụ và
+            chính sách bảo mật của chúng tôi.
           </Text>
         </View>
       </View>

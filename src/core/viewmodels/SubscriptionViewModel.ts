@@ -8,6 +8,49 @@ import type {
   SubscriptionTier,
 } from '../models/Subscription';
 
+// Mock data for development
+const MOCK_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'free-tier',
+    name: 'Free',
+    description: 'Gói miễn phí cơ bản',
+    tier: 'FREE',
+    price: 0,
+    currency: 'VND',
+    billingPeriod: 'MONTHLY',
+    features: [
+      'Tạo tối đa 3 ngân sách',
+      'Ghi tối đa 50 chi tiêu/tháng',
+      'Báo cáo cơ bản',
+    ],
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'premium-monthly',
+    name: 'Premium',
+    description: 'Nâng cấp Premium để truy cập tất cả tính năng',
+    tier: 'PREMIUM',
+    price: 30000,
+    currency: 'VND',
+    billingPeriod: 'MONTHLY',
+    features: [
+      'Ngân sách không giới hạn',
+      'Chi tiêu không giới hạn',
+      'Báo cáo phân tích chi tiết',
+      'Mẫu ngân sách',
+      'Chi tiêu định kỳ tự động',
+      'Chia chi tiêu với bạn bè',
+      'Xuất báo cáo PDF/Excel',
+      'AI gợi ý chi tiêu',
+    ],
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
 interface SubscriptionState {
   plans: SubscriptionPlan[];
   currentSubscription: UserSubscription | null;
@@ -17,13 +60,15 @@ interface SubscriptionState {
 }
 
 export const useSubscription = () => {
-  const [subscriptionState, setSubscriptionState] = useState<SubscriptionState>({
-    plans: [],
-    currentSubscription: null,
-    selectedPlan: null,
-    history: [],
-    payments: [],
-  });
+  const [subscriptionState, setSubscriptionState] = useState<SubscriptionState>(
+    {
+      plans: [],
+      currentSubscription: null,
+      selectedPlan: null,
+      history: [],
+      payments: [],
+    },
+  );
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,13 +79,19 @@ export const useSubscription = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const plans = await subscriptionRepository.getPlans();
+      let plans = await subscriptionRepository.getPlans();
+      // Use mock data if API returns empty
+      if (!plans || plans.length === 0) {
+        plans = MOCK_PLANS;
+      }
       setSubscriptionState(prev => ({ ...prev, plans }));
       return plans;
     } catch (err) {
+      // Use mock data on error
+      setSubscriptionState(prev => ({ ...prev, plans: MOCK_PLANS }));
       const message = err instanceof Error ? err.message : 'Lỗi khi tải gói';
       setError(message);
-      throw err;
+      return MOCK_PLANS;
     } finally {
       setIsLoading(false);
     }
@@ -68,11 +119,16 @@ export const useSubscription = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const subscription = await subscriptionRepository.getCurrentSubscription();
-      setSubscriptionState(prev => ({ ...prev, currentSubscription: subscription }));
+      const subscription =
+        await subscriptionRepository.getCurrentSubscription();
+      setSubscriptionState(prev => ({
+        ...prev,
+        currentSubscription: subscription,
+      }));
       return subscription;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi khi tải gói hiện tại';
+      const message =
+        err instanceof Error ? err.message : 'Lỗi khi tải gói hiện tại';
       setError(message);
       return null;
     } finally {
@@ -89,7 +145,8 @@ export const useSubscription = () => {
       setSubscriptionState(prev => ({ ...prev, history }));
       return history;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi khi tải lịch sử';
+      const message =
+        err instanceof Error ? err.message : 'Lỗi khi tải lịch sử';
       setError(message);
       throw err;
     } finally {
@@ -98,25 +155,29 @@ export const useSubscription = () => {
   }, []);
 
   // Create payment for subscription
-  const createPayment = useCallback(async (planId: string): Promise<PaymentResponse> => {
-    setIsLoading(true);
-    setError(null);
-    setSuccess(false);
-    try {
-      const result = await subscriptionRepository.createPayment(planId);
-      if (!result.success) {
-        throw new Error(result.error || 'Lỗi tạo thanh toán');
+  const createPayment = useCallback(
+    async (planId: string): Promise<PaymentResponse> => {
+      setIsLoading(true);
+      setError(null);
+      setSuccess(false);
+      try {
+        const result = await subscriptionRepository.createPayment(planId);
+        if (!result.success) {
+          throw new Error(result.error || 'Lỗi tạo thanh toán');
+        }
+        setSuccess(true);
+        return result;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Lỗi tạo thanh toán';
+        setError(message);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
-      setSuccess(true);
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi tạo thanh toán';
-      setError(message);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Subscribe to plan
   const subscribe = useCallback(async (planId: string) => {
@@ -150,7 +211,9 @@ export const useSubscription = () => {
     setError(null);
     setSuccess(false);
     try {
-      const result = await subscriptionRepository.cancelSubscription(subscriptionId);
+      const result = await subscriptionRepository.cancelSubscription(
+        subscriptionId,
+      );
       if (!result.success) {
         throw new Error(result.error || 'Lỗi hủy gói');
       }
@@ -178,7 +241,8 @@ export const useSubscription = () => {
       setSubscriptionState(prev => ({ ...prev, payments }));
       return payments;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi tải lịch sử thanh toán';
+      const message =
+        err instanceof Error ? err.message : 'Lỗi tải lịch sử thanh toán';
       setError(message);
       throw err;
     } finally {

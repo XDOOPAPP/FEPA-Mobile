@@ -13,9 +13,9 @@ export class SubscriptionRepository {
    */
   async getPlans(): Promise<SubscriptionPlan[]> {
     try {
-      const response = await axiosInstance.get<SubscriptionResponse<SubscriptionPlan[]>>(
-        '/subscriptions/plans'
-      );
+      const response = await axiosInstance.get<
+        SubscriptionResponse<SubscriptionPlan[]>
+      >('/subscriptions/plans');
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching subscription plans:', error);
@@ -28,9 +28,9 @@ export class SubscriptionRepository {
    */
   async getPlanById(planId: string): Promise<SubscriptionPlan> {
     try {
-      const response = await axiosInstance.get<SubscriptionResponse<SubscriptionPlan>>(
-        `/subscriptions/plans/${planId}`
-      );
+      const response = await axiosInstance.get<
+        SubscriptionResponse<SubscriptionPlan>
+      >(`/subscriptions/plans/${planId}`);
       if (!response.data?.data) {
         throw new Error('Plan not found');
       }
@@ -46,9 +46,9 @@ export class SubscriptionRepository {
    */
   async getCurrentSubscription(): Promise<UserSubscription | null> {
     try {
-      const response = await axiosInstance.get<SubscriptionResponse<UserSubscription>>(
-        '/subscriptions/current'
-      );
+      const response = await axiosInstance.get<
+        SubscriptionResponse<UserSubscription>
+      >('/subscriptions/current');
       return response.data?.data || null;
     } catch (error) {
       console.error('Error fetching current subscription:', error);
@@ -61,9 +61,9 @@ export class SubscriptionRepository {
    */
   async getSubscriptionHistory(): Promise<UserSubscription[]> {
     try {
-      const response = await axiosInstance.get<SubscriptionResponse<UserSubscription[]>>(
-        '/subscriptions/history'
-      );
+      const response = await axiosInstance.get<
+        SubscriptionResponse<UserSubscription[]>
+      >('/subscriptions/history');
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching subscription history:', error);
@@ -76,13 +76,10 @@ export class SubscriptionRepository {
    */
   async createPayment(planId: string): Promise<PaymentResponse> {
     try {
-      const response = await axiosInstance.post<PaymentResponse>(
-        '/payments',
-        {
-          planId,
-          paymentMethod: 'VNPAY',
-        }
-      );
+      const response = await axiosInstance.post<PaymentResponse>('/payments', {
+        planId,
+        paymentMethod: 'VNPAY',
+      });
       return response.data;
     } catch (error) {
       console.error('Error creating payment:', error);
@@ -93,12 +90,13 @@ export class SubscriptionRepository {
   /**
    * Subscribe to a plan
    */
-  async subscribe(planId: string): Promise<SubscriptionResponse<UserSubscription>> {
+  async subscribe(
+    planId: string,
+  ): Promise<SubscriptionResponse<UserSubscription>> {
     try {
-      const response = await axiosInstance.post<SubscriptionResponse<UserSubscription>>(
-        '/subscriptions',
-        { planId }
-      );
+      const response = await axiosInstance.post<
+        SubscriptionResponse<UserSubscription>
+      >('/subscriptions', { planId });
       return response.data;
     } catch (error) {
       console.error('Error subscribing to plan:', error);
@@ -109,10 +107,12 @@ export class SubscriptionRepository {
   /**
    * Cancel subscription
    */
-  async cancelSubscription(subscriptionId: string): Promise<SubscriptionResponse<void>> {
+  async cancelSubscription(
+    subscriptionId: string,
+  ): Promise<SubscriptionResponse<void>> {
     try {
       const response = await axiosInstance.patch<SubscriptionResponse<void>>(
-        `/subscriptions/${subscriptionId}/cancel`
+        `/subscriptions/${subscriptionId}/cancel`,
       );
       return response.data;
     } catch (error) {
@@ -124,11 +124,13 @@ export class SubscriptionRepository {
   /**
    * Verify VNPay payment callback
    */
-  async verifyPaymentCallback(params: Record<string, string>): Promise<SubscriptionResponse<void>> {
+  async verifyPaymentCallback(
+    params: Record<string, string>,
+  ): Promise<SubscriptionResponse<void>> {
     try {
       const response = await axiosInstance.get<SubscriptionResponse<void>>(
         '/payments/vnpay/ipn',
-        { params }
+        { params },
       );
       return response.data;
     } catch (error) {
@@ -143,7 +145,7 @@ export class SubscriptionRepository {
   async getPaymentHistory(): Promise<Payment[]> {
     try {
       const response = await axiosInstance.get<SubscriptionResponse<Payment[]>>(
-        '/payments/history'
+        '/payments/history',
       );
       return response.data?.data || [];
     } catch (error) {
