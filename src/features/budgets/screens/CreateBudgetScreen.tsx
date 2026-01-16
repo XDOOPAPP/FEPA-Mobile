@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -12,14 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useBudget } from '../../../common/hooks/useMVVM';
-import { AuthContext } from '../../../store/AuthContext';
-import { FieldValidators } from '../../../utils/FormValidation';
-import {
-  ExpenseCategory,
-  EXPENSE_CATEGORIES,
-} from '../../../core/models/Expense';
-import { useFeatureGate } from '../../../core/viewmodels/FeatureGateViewModel';
+import { useAuth } from '../../../common/hooks/useMVVM';
 
 type RootStackParamList = {
   CreateBudget: undefined;
@@ -29,104 +22,72 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateBudget'>;
 
 interface CreateBudgetForm {
-  category: ExpenseCategory;
+  category: string;
   limit: string;
-  month: string;
 }
 
+const BUDGET_CATEGORIES = [
+  '🍔 Ăn uống',
+  '🚗 Giao thông',
+  '🏠 Nhà cửa',
+  '🎓 Giáo dục',
+  '👗 Quần áo',
+  '💊 Sức khỏe',
+  '🎮 Giải trí',
+  '📱 Công nghệ',
+  '💳 Tài chính',
+  '🛒 Mua sắm',
+  '✈️ Du lịch',
+  '🎁 Quà tặng',
+];
+
 const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
-  const authContext = useContext(AuthContext);
-  const { createBudget, isLoading } = useBudget(authContext?.userToken || '');
-  const { canCreateBudget, getBudgetQuota, isPremium } = useFeatureGate();
-
-  // Get current month in YYYY-MM format
-  const getCurrentMonth = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-      2,
-      '0',
-    )}`;
-  };
-
+  const { authState } = useAuth();
   const [formData, setFormData] = useState<CreateBudgetForm>({
-    category: 'food',
+    category: BUDGET_CATEGORIES[0],
     limit: '',
-    month: getCurrentMonth(),
   });
 
   const [errors, setErrors] = useState<Partial<CreateBudgetForm>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
   // Xác thực form
   const validateForm = useCallback(() => {
     const newErrors: Partial<CreateBudgetForm> = {};
 
-    const limitError = FieldValidators.validateBudgetLimit(formData.limit);
-    if (limitError) {
-      newErrors.limit = limitError;
+    if (!formData.limit.trim()) {
+      newErrors.limit = 'Giới hạn ngân sách không được bỏ trống';
+    } else if (isNaN(Number(formData.limit)) || Number(formData.limit) <= 0) {
+      newErrors.limit = 'Giới hạn phải lớn hơn 0';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // Xử lý tạo ngân sách từ API
+  // Xử lý tạo ngân sách
   const handleCreateBudget = useCallback(async () => {
-    // Check premium feature
-    if (!canCreateBudget()) {
-      const quota = getBudgetQuota();
-      Alert.alert(
-        '📊 Nâng cấp Premium',
-        `Bạn đã đạt tới giới hạn ${quota.total} ngân sách trong gói Free.\n\nNâng cấp lên Premium để tạo ngân sách không giới hạn.`,
-        [
-          {
-            text: 'Hủy',
-            style: 'cancel',
-          },
-          {
-            text: 'Nâng cấp',
-            onPress: () => {
-              // Navigate to subscription plans
-              navigation
-                .getParent()
-                ?.navigate('Profile', { screen: 'Subscription' });
-            },
-          },
-        ],
-      );
-      return;
-    }
-
     if (!validateForm()) return;
 
+    setIsLoading(true);
     try {
-      await createBudget({
-        category: formData.category,
-        limit: Number(formData.limit),
-        month: formData.month,
-      });
-
-      Alert.alert('✅ Thành công', 'Tạo ngân sách thành công!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.navigate('BudgetList');
+      // Giả lập API call
+      setTimeout(() => {
+        Alert.alert('Thành công', 'Tạo ngân sách thành công!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('BudgetList');
+            },
           },
-        },
-      ]);
+        ]);
+        setIsLoading(false);
+      }, 500);
     } catch (error: any) {
-      Alert.alert(
-        '❌ Lỗi',
-        error.message || 'Lỗi tạo ngân sách. Vui lòng thử lại.',
-      );
+      Alert.alert('Lỗi', error.message || 'Không thể tạo ngân sách');
+      setIsLoading(false);
     }
-  }, [
-    formData,
-    validateForm,
-    navigation,
-    createBudget,
-    canCreateBudget,
-    getBudgetQuota,
-  ]);
+  }, [formData, validateForm, navigation]);
 
   const handleInputChange = (field: keyof CreateBudgetForm, value: string) => {
     setFormData(prev => ({
@@ -165,24 +126,23 @@ const CreateBudgetScreen: React.FC<Props> = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               style={styles.categoryScroll}
             >
-              {EXPENSE_CATEGORIES.map(cat => (
+              {BUDGET_CATEGORIES.map(cat => (
                 <TouchableOpacity
-                  key={cat.value}
+                  key={cat}
                   style={[
                     styles.categoryButton,
-                    formData.category === cat.value &&
-                      styles.categoryButtonActive,
+                    formData.category === cat && styles.categoryButtonActive,
                   ]}
-                  onPress={() => handleInputChange('category', cat.value)}
+                  onPress={() => handleInputChange('category', cat)}
                 >
                   <Text
                     style={[
                       styles.categoryButtonText,
-                      formData.category === cat.value &&
+                      formData.category === cat &&
                         styles.categoryButtonTextActive,
                     ]}
                   >
-                    {cat.label}
+                    {cat}
                   </Text>
                 </TouchableOpacity>
               ))}

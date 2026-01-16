@@ -13,8 +13,6 @@ import {
 } from 'react-native';
 import { useAuth } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
-import ErrorHandler from '../../../utils/ErrorHandler';
-import { FieldValidators } from '../../../utils/FormValidation';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
@@ -43,14 +41,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const validateForm = useCallback(() => {
     const newErrors: Partial<LoginFormData> = {};
 
-    const emailError = FieldValidators.validateEmail(formData.email);
-    if (emailError) {
-      newErrors.email = emailError;
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email không được bỏ trống';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Email không hợp lệ';
     }
 
-    const passwordError = FieldValidators.validatePassword(formData.password);
-    if (passwordError) {
-      newErrors.password = passwordError;
+    if (!formData.password) {
+      newErrors.password = 'Mật khẩu không được bỏ trống';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
     setErrors(newErrors);
@@ -68,38 +68,16 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         password: formData.password,
       });
 
-      console.log('🔐 Login Response:', JSON.stringify(response));
-
       // Call AuthContext.login() để update global auth state
       if (response?.accessToken && authContext) {
-        console.log('✅ AccessToken received:', response.accessToken);
-
-        try {
-          await authContext.login(response.accessToken, response.refreshToken);
-          console.log('✅ AuthContext updated successfully');
-        } catch (contextError: any) {
-          console.error('❌ AuthContext error:', contextError);
-          Alert.alert(
-            '❌ Lỗi',
-            'Không thể cập nhật thông tin đăng nhập. Vui lòng thử lại.',
-          );
-        }
-      } else {
-        console.error(
-          '❌ No accessToken in response or authContext not available',
-        );
-        console.error('AccessToken:', response?.accessToken);
-        console.error('AuthContext:', authContext);
-        Alert.alert(
-          '❌ Lỗi',
-          'Phiên đăng nhập không hợp lệ. Vui lòng thử lại.',
+        await authContext.login(
+          response.accessToken,
+          response.refreshToken,
+          undefined, // Sẽ load user từ API sau
         );
       }
     } catch (error: any) {
-      console.error('🚫 Login Error:', JSON.stringify(error));
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage);
+      Alert.alert('Đăng nhập thất bại', error.message || 'Đã xảy ra lỗi');
     } finally {
       setIsLoading(false);
     }

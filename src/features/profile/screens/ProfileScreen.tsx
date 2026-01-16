@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext } from 'react';
 import {
   View,
   Text,
@@ -11,32 +11,11 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthContext } from '../../../store/AuthContext';
 import { ProfileStackParamList } from '../navigation/ProfileNavigator';
-import { useSubscription } from '../../../core/viewmodels/SubscriptionViewModel';
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'>;
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const authContext = useContext(AuthContext);
-  const {
-    subscriptionState,
-    getCurrentSubscription,
-    isLoading: subscriptionLoading,
-  } = useSubscription();
-  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
-
-  useEffect(() => {
-    loadSubscription();
-  }, []);
-
-  const loadSubscription = async () => {
-    try {
-      await getCurrentSubscription();
-      setSubscriptionLoaded(true);
-    } catch (err) {
-      console.error('Error loading subscription:', err);
-      setSubscriptionLoaded(true);
-    }
-  };
 
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
@@ -102,54 +81,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.infoLabel}>Trạng thái</Text>
           <Text style={styles.infoValue}>✅ Đã xác thực</Text>
         </View>
-      </View>
-
-      {/* Subscription Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🎁 Đăng ký</Text>
-        {subscriptionLoading ? (
-          <ActivityIndicator color="#2196F3" size="small" />
-        ) : (
-          <>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Gói hiện tại</Text>
-              <Text
-                style={[
-                  styles.infoValue,
-                  subscriptionState.currentSubscription?.tier === 'PREMIUM' &&
-                    styles.premiumText,
-                ]}
-              >
-                {subscriptionState.currentSubscription?.tier === 'PREMIUM'
-                  ? '⭐ Premium'
-                  : '○ Free'}
-              </Text>
-            </View>
-            {subscriptionState.currentSubscription && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Hết hạn</Text>
-                <Text style={styles.infoValue}>
-                  {subscriptionState.currentSubscription.endDate
-                    ? new Date(
-                        subscriptionState.currentSubscription.endDate,
-                      ).toLocaleDateString('vi-VN')
-                    : 'Không có hạn'}
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={styles.settingItem}
-              onPress={() => navigation.navigate('Subscription')}
-            >
-              <Text style={styles.settingLabel}>
-                {subscriptionState.currentSubscription?.tier === 'PREMIUM'
-                  ? '📋 Quản lý'
-                  : '⬆️ Nâng cấp'}
-              </Text>
-              <Text style={styles.arrow}>›</Text>
-            </TouchableOpacity>
-          </>
-        )}
       </View>
 
       {/* Settings Section */}
@@ -262,10 +193,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '600',
-  },
-  premiumText: {
-    color: '#FF9800',
-    fontWeight: '700',
   },
   settingItem: {
     flexDirection: 'row',

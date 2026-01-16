@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../../common/hooks/useMVVM';
-import ErrorHandler from '../../../utils/ErrorHandler';
 
 type RootStackParamList = {
   Profile: undefined;
@@ -41,14 +40,10 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
       newErrors.currentPassword = 'Mật khẩu hiện tại không được bỏ trống';
     }
 
-    const newPasswordError = ErrorHandler.validatePassword(newPassword);
-    if (newPasswordError) {
-      // For change password, we want at least 8 chars
-      if (!newPassword.trim()) {
-        newErrors.newPassword = 'Mật khẩu mới không được bỏ trống';
-      } else if (newPassword.length < 8) {
-        newErrors.newPassword = 'Mật khẩu phải có ít nhất 8 ký tự';
-      }
+    if (!newPassword.trim()) {
+      newErrors.newPassword = 'Mật khẩu mới không được bỏ trống';
+    } else if (newPassword.length < 8) {
+      newErrors.newPassword = 'Mật khẩu phải có ít nhất 8 ký tự';
     }
 
     if (!confirmPassword.trim()) {
@@ -72,7 +67,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
     setIsLoading(true);
     try {
       await changePassword(currentPassword, newPassword);
-      Alert.alert('✅ Thành công', 'Mật khẩu của bạn đã được cập nhật.', [
+      Alert.alert('Thành công', 'Mật khẩu của bạn đã được cập nhật.', [
         {
           text: 'OK',
           onPress: () => {
@@ -81,9 +76,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
         },
       ]);
     } catch (err: any) {
-      const errorMessage = ErrorHandler.parseApiError(err);
-      const errorTitle = ErrorHandler.getErrorTitle(err);
-      Alert.alert(errorTitle, errorMessage);
+      Alert.alert('Lỗi', err.message || 'Không thể đổi mật khẩu');
     } finally {
       setIsLoading(false);
     }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   FlatList,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AuthContext } from '../../../store/AuthContext';
+import { useAuth } from '../../../common/hooks/useMVVM';
 
 type RootStackParamList = {
   ExpenseList: undefined;
@@ -34,9 +34,9 @@ interface ExpenseItem {
 type SortType = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
 
 const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
-  const authContext = useContext(AuthContext);
+  const { authState } = useAuth();
   const { expenseState, getExpenses, deleteExpense } = useExpense(
-    authContext?.userToken || '',
+    authState.token || '',
   );
   const [searchText, setSearchText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -49,10 +49,10 @@ const ExpenseListScreen: React.FC<Props> = ({ navigation }) => {
   }, []);
 
   const loadExpenses = useCallback(async () => {
-    if (authContext?.userToken) {
+    if (authState.token) {
       await getExpenses();
     }
-  }, [authContext?.userToken, getExpenses]);
+  }, [authState.token, getExpenses]);
 
   // Pull to refresh
   const onRefresh = useCallback(async () => {

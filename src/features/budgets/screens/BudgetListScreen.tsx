@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   FlatList,
@@ -10,9 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useBudget } from '../../../common/hooks/useMVVM';
-import { AuthContext } from '../../../store/AuthContext';
-import { EXPENSE_CATEGORIES } from '../../../core/models/Expense';
+import { useAuth } from '../../../common/hooks/useMVVM';
 
 type RootStackParamList = {
   BudgetList: undefined;
@@ -31,18 +29,57 @@ interface BudgetItem {
 }
 
 const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
-  const authContext = useContext(AuthContext);
-  const { budgetState, getBudgets, deleteBudget, isLoading } = useBudget(
-    authContext?.userToken || '',
-  );
+  const { authState } = useAuth();
+  const [budgets, setBudgets] = useState<BudgetItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Giả dữ liệu budget mẫu - sau này sẽ lấy từ API
+  const mockBudgets: BudgetItem[] = [
+    {
+      id: '1',
+      category: '🍔 Ăn uống',
+      limit: 5000000,
+      spent: 3200000,
+      month: 'Tháng 1/2026',
+    },
+    {
+      id: '2',
+      category: '🚗 Giao thông',
+      limit: 2000000,
+      spent: 1800000,
+      month: 'Tháng 1/2026',
+    },
+    {
+      id: '3',
+      category: '🏠 Nhà cửa',
+      limit: 10000000,
+      spent: 9500000,
+      month: 'Tháng 1/2026',
+    },
+    {
+      id: '4',
+      category: '👗 Quần áo',
+      limit: 3000000,
+      spent: 1500000,
+      month: 'Tháng 1/2026',
+    },
+  ];
 
   // Lấy danh sách ngân sách
   const loadBudgets = useCallback(async () => {
-    if (authContext?.userToken) {
-      await getBudgets();
+    setIsLoading(true);
+    try {
+      // Giả lập API call
+      setTimeout(() => {
+        setBudgets(mockBudgets);
+        setIsLoading(false);
+      }, 500);
+    } catch {
+      Alert.alert('Lỗi', 'Không thể tải ngân sách');
+      setIsLoading(false);
     }
-  }, [authContext?.userToken, getBudgets]);
+  }, []);
 
   useEffect(() => {
     loadBudgets();
@@ -65,20 +102,15 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
           { text: 'Hủy', onPress: () => {}, style: 'cancel' },
           {
             text: 'Xóa',
-            onPress: async () => {
-              try {
-                await deleteBudget(id);
-                await loadBudgets();
-              } catch (error: any) {
-                Alert.alert('Lỗi', error?.message || 'Không thể xóa ngân sách');
-              }
+            onPress: () => {
+              setBudgets(budgets.filter(b => b.id !== id));
             },
             style: 'destructive',
           },
         ],
       );
     },
-    [deleteBudget, loadBudgets],
+    [budgets],
   );
 
   // Tính % chi tiêu
@@ -103,27 +135,19 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <TouchableOpacity
         style={styles.budgetCard}
-        onPress={() => navigation.navigate('BudgetDetail', { id: item.id })}
+        onPress={() => navigation.navigate('EditBudget', { id: item.id })}
       >
         <View style={styles.budgetHeader}>
           <View>
             <Text style={styles.budgetCategory}>{item.category}</Text>
             <Text style={styles.budgetMonth}>{item.month}</Text>
           </View>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => navigation.navigate('EditBudget', { id: item.id })}
-            >
-              <Text style={styles.editBtnText}>Sửa</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteBtn}
-              onPress={() => handleDelete(item.id, item.category)}
-            >
-              <Text style={styles.deleteBtnText}>Xóa</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => handleDelete(item.id, item.category)}
+          >
+            <Text style={styles.deleteBtnText}>Xóa</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Progress Bar */}
@@ -184,10 +208,7 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   // Empty state
-  if (
-    !isLoading &&
-    (!budgetState.budgets || budgetState.budgets.length === 0)
-  ) {
+  if (!isLoading && (!budgets || budgets.length === 0)) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
@@ -209,7 +230,7 @@ const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={budgetState.budgets}
+          data={budgets}
           renderItem={renderBudgetItem}
           keyExtractor={(item: BudgetItem) => item.id}
           refreshControl={
@@ -256,21 +277,6 @@ const styles = StyleSheet.create({
   budgetMonth: {
     fontSize: 12,
     color: '#999',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  editBtn: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  editBtnText: {
-    color: '#1976D2',
-    fontSize: 12,
-    fontWeight: '600',
   },
   deleteBtn: {
     backgroundColor: '#FFEBEE',

@@ -1,21 +1,12 @@
-export type ExpenseCategory =
-  | 'food'
-  | 'transport'
-  | 'entertainment'
-  | 'utilities'
-  | 'health'
-  | 'shopping'
-  | 'other';
-
-export const EXPENSE_CATEGORIES: { label: string; value: ExpenseCategory }[] = [
-  { label: '🍔 Ăn uống', value: 'food' },
-  { label: '🚗 Giao thông', value: 'transport' },
-  { label: '🏠 Nhà cửa', value: 'utilities' },
-  { label: '🎓 Giáo dục', value: 'other' },
-  { label: '👗 Quần áo', value: 'shopping' },
-  { label: '💊 Sức khỏe', value: 'health' },
-  { label: '🎮 Giải trí', value: 'entertainment' },
-];
+export enum ExpenseCategory {
+  FOOD = 'food',
+  TRANSPORT = 'transport',
+  ENTERTAINMENT = 'entertainment',
+  UTILITIES = 'utilities',
+  HEALTH = 'health',
+  SHOPPING = 'shopping',
+  OTHER = 'other',
+}
 
 export interface Expense {
   id: string;

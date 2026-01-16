@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { useAuth } from '../../../common/hooks/useMVVM';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { FieldValidators } from '../../../utils/FormValidation';
 
 type RootStackParamList = {
   Login: undefined;
@@ -51,19 +50,22 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const validateForm = useCallback(() => {
     const newErrors: Partial<RegisterFormData> = {};
 
-    const fullNameError = ErrorHandler.validateFullName(formData.fullName);
-    if (fullNameError) {
-      newErrors.fullName = fullNameError;
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Tên đầy đủ không được bỏ trống';
+    } else if (formData.fullName.length < 3) {
+      newErrors.fullName = 'Tên đầy đủ phải có ít nhất 3 ký tự';
     }
 
-    const emailError = ErrorHandler.validateEmail(formData.email);
-    if (emailError) {
-      newErrors.email = emailError;
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email không được bỏ trống';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Email không hợp lệ';
     }
 
-    const passwordError = ErrorHandler.validatePassword(formData.password);
-    if (passwordError) {
-      newErrors.password = passwordError;
+    if (!formData.password) {
+      newErrors.password = 'Mật khẩu không được bỏ trống';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
     if (!formData.confirmPassword) {
@@ -95,14 +97,12 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       );
 
       Alert.alert(
-        '📧 OTP đã được gửi',
+        'OTP đã được gửi',
         `Mã OTP đã được gửi đến ${formData.email.trim()}. Vui lòng nhập mã để tiếp tục.`,
       );
       setStep('otp');
     } catch (error: any) {
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage);
+      Alert.alert('Lỗi', error.message || 'Không thể gửi OTP');
     }
   }, [formData, validateForm, register]);
 
@@ -128,7 +128,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       // Call backend để verify OTP
       await verifyOtp(formData.email.trim(), otp);
 
-      Alert.alert('✅ Thành công', 'Đăng ký thành công! Vui lòng đăng nhập.', [
+      Alert.alert('Thành công', 'Đăng ký thành công! Vui lòng đăng nhập.', [
         {
           text: 'OK',
           onPress: () => {
@@ -138,9 +138,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         },
       ]);
     } catch (error: any) {
-      const errorMessage = ErrorHandler.parseApiError(error);
-      const errorTitle = ErrorHandler.getErrorTitle(error);
-      Alert.alert(errorTitle, errorMessage);
+      Alert.alert('Lỗi', error.message || 'Không thể xác thực OTP');
     }
   }, [otp, formData, verifyOtp, validateOTP, clearMessages, navigation]);
 

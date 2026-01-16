@@ -1,18 +1,23 @@
-import axiosInstance from '../../api/axiosInstance';
+import axios from 'axios';
 import {
   Expense,
   CreateExpenseRequest,
   ExpenseFilter,
 } from '../models/Expense';
+import { API_BASE_URL } from '../../constants/api';
 
 class ExpenseRepository {
+  private apiClient = axios.create({
+    baseURL: API_BASE_URL,
+  });
+
   setAuthToken(token: string) {
-    // Token is automatically added via axiosInstance interceptor from AsyncStorage
+    this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   }
 
   async getExpenses(filter?: ExpenseFilter): Promise<Expense[]> {
     try {
-      const response = await axiosInstance.get('/expenses', {
+      const response = await this.apiClient.get('/expenses', {
         params: filter,
       });
       return response.data;
@@ -23,7 +28,7 @@ class ExpenseRepository {
 
   async getExpenseById(id: string): Promise<Expense> {
     try {
-      const response = await axiosInstance.get(`/expenses/${id}`);
+      const response = await this.apiClient.get(`/expenses/${id}`);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { message: 'Failed to fetch expense' };
@@ -32,7 +37,7 @@ class ExpenseRepository {
 
   async createExpense(request: CreateExpenseRequest): Promise<Expense> {
     try {
-      const response = await axiosInstance.post('/expenses', request);
+      const response = await this.apiClient.post('/expenses', request);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { message: 'Failed to create expense' };
@@ -44,7 +49,7 @@ class ExpenseRepository {
     request: Partial<CreateExpenseRequest>,
   ): Promise<Expense> {
     try {
-      const response = await axiosInstance.patch(`/expenses/${id}`, request);
+      const response = await this.apiClient.put(`/expenses/${id}`, request);
       return response.data;
     } catch (error: any) {
       throw error.response?.data || { message: 'Failed to update expense' };
@@ -53,7 +58,7 @@ class ExpenseRepository {
 
   async deleteExpense(id: string): Promise<void> {
     try {
-      await axiosInstance.delete(`/expenses/${id}`);
+      await this.apiClient.delete(`/expenses/${id}`);
     } catch (error: any) {
       throw error.response?.data || { message: 'Failed to delete expense' };
     }
@@ -61,7 +66,7 @@ class ExpenseRepository {
 
   async getExpenseStats(startDate: string, endDate: string) {
     try {
-      const response = await axiosInstance.get('/expenses/stats', {
+      const response = await this.apiClient.get('/expenses/stats', {
         params: { startDate, endDate },
       });
       return response.data;

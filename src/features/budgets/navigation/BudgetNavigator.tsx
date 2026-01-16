@@ -3,14 +3,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { TouchableOpacity, Text } from 'react-native';
 import BudgetListScreen from '../screens/BudgetListScreen';
 import CreateBudgetScreen from '../screens/CreateBudgetScreen';
-import EditBudgetScreen from '../screens/EditBudgetScreen';
-import BudgetDetailScreen from '../screens/BudgetDetailScreen';
 
 export type BudgetStackParamList = {
   BudgetList: undefined;
   CreateBudget: undefined;
   EditBudget: { id: string };
-  BudgetDetail: { id: string };
 };
 
 const Stack = createNativeStackNavigator<BudgetStackParamList>();
@@ -53,20 +50,6 @@ export const BudgetNavigator = () => {
         component={CreateBudgetScreen}
         options={{
           title: 'Tạo ngân sách',
-        }}
-      />
-      <Stack.Screen
-        name="EditBudget"
-        component={EditBudgetScreen}
-        options={{
-          title: 'Chỉnh sửa ngân sách',
-        }}
-      />
-      <Stack.Screen
-        name="BudgetDetail"
-        component={BudgetDetailScreen}
-        options={{
-          title: 'Chi tiết ngân sách',
         }}
       />
     </Stack.Navigator>

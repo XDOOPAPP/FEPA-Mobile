@@ -1,6 +1,5 @@
 import { useAuthViewModel } from '../../core/viewmodels/AuthViewModel';
 import { useExpenseViewModel } from '../../core/viewmodels/ExpenseViewModel';
-import { useBudgetViewModel } from '../../core/viewmodels/BudgetViewModel';
 
 /**
  * Custom hook để sử dụng Auth ViewModel
@@ -16,14 +15,6 @@ export const useAuth = () => {
  */
 export const useExpense = (token: string | null) => {
   return useExpenseViewModel(token);
-};
-
-/**
- * Custom hook để sử dụng Budget ViewModel
- * Usage: const { budgetState, getBudgets, createBudget } = useBudget(token);
- */
-export const useBudget = (token: string | null) => {
-  return useBudgetViewModel(token);
 };
 
 /**

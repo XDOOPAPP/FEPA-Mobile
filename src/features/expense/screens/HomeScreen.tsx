@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useAuth } from '../../../common/hooks/useMVVM';
+import axiosInstance from '../../../api/axiosInstance';
+import { API_ENDPOINTS } from '../../../constants/api';
 
 type Props = any;
 
@@ -45,15 +48,51 @@ const HomeScreen: React.FC<Props> = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Lấy thống kê
+  // Lấy thống kê từ API
   const loadStats = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Giả lập API call
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 500);
-    } catch (error) {
+      const response = await axiosInstance.get(API_ENDPOINTS.GET_EXPENSE_STATS);
+      if (response.data) {
+        setStats({
+          totalExpenses: response.data.totalExpenses || 0,
+          monthlyExpenses: response.data.monthlyExpenses || 0,
+          budgetUsed: Math.min(response.data.budgetPercentage || 0, 100),
+          savingsGoal: response.data.savingsGoal || 2000000,
+        });
+      }
+
+      // Get expenses for category breakdown
+      const expensesResponse = await axiosInstance.get(
+        API_ENDPOINTS.GET_EXPENSES,
+      );
+      if (expensesResponse.data && Array.isArray(expensesResponse.data)) {
+        const categoryMap: { [key: string]: number } = {};
+        expensesResponse.data.forEach((expense: any) => {
+          const category = expense.category || 'Khác';
+          categoryMap[category] = (categoryMap[category] || 0) + expense.amount;
+        });
+
+        const totalByCategory = Object.values(categoryMap).reduce(
+          (sum, val) => sum + val,
+          0,
+        );
+        const categoryExpenses = Object.entries(categoryMap).map(
+          ([category, amount]) => ({
+            category: category,
+            amount: amount as number,
+            percentage: Math.round(
+              ((amount as number) / totalByCategory) * 100,
+            ),
+          }),
+        );
+
+        setCategoryExpenses(categoryExpenses);
+      }
+    } catch (error: any) {
+      console.error('Error loading stats:', error);
+      // Don't show alert, just keep mock data
+    } finally {
       setIsLoading(false);
     }
   }, []);

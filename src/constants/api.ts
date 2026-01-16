@@ -16,7 +16,6 @@ export const API_ENDPOINTS = {
   LOGOUT: '/auth/logout',
   GET_PROFILE: '/auth/me',
   UPDATE_PROFILE: '/auth/profile',
-  REFRESH: '/auth/refresh',
 
   // Expenses
   GET_EXPENSES: '/expenses',
@@ -32,19 +31,6 @@ export const API_ENDPOINTS = {
   CREATE_BUDGET: '/budgets',
   UPDATE_BUDGET: (id: string) => `/budgets/${id}`,
   DELETE_BUDGET: (id: string) => `/budgets/${id}`,
-
-  // Subscriptions
-  GET_SUBSCRIPTION_PLANS: '/subscriptions/plans',
-  GET_SUBSCRIPTION_PLAN: (id: string) => `/subscriptions/plans/${id}`,
-  GET_CURRENT_SUBSCRIPTION: '/subscriptions/current',
-  GET_SUBSCRIPTION_HISTORY: '/subscriptions/history',
-  SUBSCRIBE_PLAN: '/subscriptions',
-  CANCEL_SUBSCRIPTION: (id: string) => `/subscriptions/${id}/cancel`,
-
-  // Payments
-  CREATE_PAYMENT: '/payments',
-  GET_PAYMENT_HISTORY: '/payments/history',
-  VERIFY_VNPAY: '/payments/vnpay/ipn',
 };
 
 // Request timeout (ms)

@@ -26,20 +26,17 @@ export const useAuthViewModel = () => {
       clearMessages();
       try {
         const response: LoginResponse = await userRepository.login(request);
-
-        // Backend returns accessToken, not token
-        const token = response.accessToken || response.token;
-        userRepository.setAuthToken(token);
+        userRepository.setAuthToken(response.token);
 
         setAuthState(prev => ({
           ...prev,
           user: response.user,
           isAuthenticated: true,
-          token: token,
+          token: response.token,
         }));
 
         setSuccess('Login successful');
-        return { ...response, token };
+        return response;
       } catch (error: any) {
         setError(error.message || 'Login failed');
         throw error;

@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import HomeScreen from '../features/expense/screens/HomeScreen';
 import { ExpenseNavigator } from '../features/expenses/navigation/ExpenseNavigator';
-import { BudgetNavigator } from '../features/budgets/navigation/BudgetNavigator';
+import { BudgetNavigator } from '../features/budget/navigation/BudgetNavigator';
 import { ProfileNavigator } from '../features/profile/navigation/ProfileNavigator';
 import { MoreNavigator } from '../features/more/navigation/MoreNavigator';
 
@@ -72,7 +72,7 @@ const AppStack = () => {
           title: 'Thêm',
           tabBarLabel: 'Thêm',
           tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 20, color }}>•••</Text>
+            <Text style={{ fontSize: 20, color }}>⭐</Text>
           ),
         }}
       />
