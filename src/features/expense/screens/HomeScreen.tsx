@@ -30,6 +30,8 @@ interface CategoryExpense {
 
 const HomeScreen: React.FC<Props> = () => {
   const { authState } = useAuth();
+  console.log('HomeScreen rendered, authState:', authState);
+
   const [stats, setStats] = useState<DashboardStats>({
     totalExpenses: 15200000,
     monthlyExpenses: 8500000,

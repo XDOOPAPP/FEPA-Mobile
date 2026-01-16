@@ -20,6 +20,7 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 const Tab = createBottomTabNavigator();
 
 const AppStack = () => {
+  console.log('AppStack rendering...');
   return (
     <Tab.Navigator
       screenOptions={{

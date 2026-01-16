@@ -25,13 +25,18 @@ export interface AuthContextType {
   isLoading: boolean;
   isRefreshing: boolean;
   isAuthenticated: boolean;
-  
+  isPremium: boolean;
+  premiumExpiry: string | null;
+
   // Functions
-  login: (token: string, refreshToken?: string, userData?: User) => Promise<void>;
+  login: (
+    token: string,
+    refreshToken?: string,
+    userData?: User,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   loadUserInfo: () => Promise<void>;
   refreshAuthToken: () => Promise<boolean>;
   checkTokenValidity: () => Promise<boolean>;
   updateUser: (userData: User) => void;
 }
-

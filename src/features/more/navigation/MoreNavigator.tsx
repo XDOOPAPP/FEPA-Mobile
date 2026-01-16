@@ -1,15 +1,11 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import MoreMenuScreen from '../screens/MoreMenuScreen';
-import AnalyticsScreen from '../../analytics/screens/AnalyticsScreen';
-import ReceiptOCRScreen from '../../ocr/screens/ReceiptOCRScreen';
-import DebtTrackerScreen from '../../debt/screens/DebtTrackerScreen';
+import MoreScreen from '../screens/MoreScreen';
+import UpgradePremiumScreen from '../screens/UpgradePremiumScreen';
 
 export type MoreStackParamList = {
-  MoreMenu: undefined;
-  Analytics: undefined;
-  ReceiptOCR: undefined;
-  DebtTracker: undefined;
+  MoreHome: undefined;
+  UpgradePremium: undefined;
 };
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
@@ -19,41 +15,22 @@ export const MoreNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: true,
-        headerBackTitleVisible: false,
-        headerTintColor: '#2196F3',
-        headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 16,
-        },
+        headerTitleAlign: 'center',
       }}
     >
       <Stack.Screen
-        name="MoreMenu"
-        component={MoreMenuScreen}
+        name="MoreHome"
+        component={MoreScreen}
         options={{
-          title: 'Tính năng nâng cao',
           headerShown: false,
+          title: 'Thêm',
         }}
       />
       <Stack.Screen
-        name="Analytics"
-        component={AnalyticsScreen}
+        name="UpgradePremium"
+        component={UpgradePremiumScreen}
         options={{
-          title: 'Phân tích chi tiêu',
-        }}
-      />
-      <Stack.Screen
-        name="ReceiptOCR"
-        component={ReceiptOCRScreen}
-        options={{
-          title: 'Quét hóa đơn',
-        }}
-      />
-      <Stack.Screen
-        name="DebtTracker"
-        component={DebtTrackerScreen}
-        options={{
-          title: 'Theo dõi nợ',
+          title: 'Nâng cấp Premium',
         }}
       />
     </Stack.Navigator>
