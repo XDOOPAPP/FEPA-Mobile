@@ -1,245 +1,244 @@
-import React, { useContext } from 'react';
+import React, { useCallback, useContext } from 'react';
 import {
   View,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../../store/AuthContext';
-import { ProfileStackParamList } from '../navigation/ProfileNavigator';
+import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
+import { useAuth } from '../../../common/hooks/useMVVM';
 
-type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'>;
-
-const ProfileScreen: React.FC<Props> = ({ navigation }) => {
+const ProfileScreen: React.FC = () => {
   const authContext = useContext(AuthContext);
+  const navigation = useNavigation<any>();
+  const { authState } = useAuth();
 
-  const handleLogout = () => {
-    Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
-      {
-        text: 'Hủy',
-        style: 'cancel',
-      },
-      {
-        text: 'Đăng xuất',
-        onPress: async () => {
-          try {
-            if (authContext?.logout) {
-              await authContext.logout();
-            }
-          } catch {
-            Alert.alert('Lỗi', 'Không thể đăng xuất');
-          }
-        },
-        style: 'destructive',
-      },
-    ]);
-  };
+  const loadProfile = useCallback(async () => {
+    if (!authContext) return;
+    try {
+      await authContext.loadUserInfo();
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể tải hồ sơ');
+    }
+  }, [authContext]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile]),
+  );
 
   if (!authContext) {
     return (
-      <View style={styles.container}>
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color="#2196F3" />
       </View>
     );
   }
 
-  const user = authContext.user;
-  const isLoggingOut = authContext.isLoading;
+  const { user, isLoading, logout } = authContext;
+
+  const handleLogout = async () => {
+    Alert.alert('Đăng xuất', 'Bạn chắc chắn muốn đăng xuất?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Đăng xuất',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+        },
+      },
+    ]);
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Profile Header */}
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
-          </Text>
-        </View>
-        <Text style={styles.name}>{user?.fullName || 'Người dùng'}</Text>
-        <Text style={styles.email}>{user?.email || 'email@example.com'}</Text>
-      </View>
-
-      {/* Profile Info Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Thông tin tài khoản</Text>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Email</Text>
-          <Text style={styles.infoValue}>{user?.email || '-'}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Tên đầy đủ</Text>
-          <Text style={styles.infoValue}>{user?.fullName || '-'}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Trạng thái</Text>
-          <Text style={styles.infoValue}>✅ Đã xác thực</Text>
-        </View>
-      </View>
-
-      {/* Settings Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Cài đặt</Text>
-
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={() => navigation.navigate('ChangePassword')}
-        >
-          <Text style={styles.settingLabel}>🔐 Đổi mật khẩu</Text>
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={() => navigation.navigate('ThemeSettings')}
-        >
-          <Text style={styles.settingLabel}>🌙 Giao diện</Text>
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Logout Button */}
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={[styles.logoutButton, isLoggingOut && styles.buttonDisabled]}
-          onPress={handleLogout}
-          disabled={isLoggingOut}
-        >
-          {isLoggingOut ? (
-            <ActivityIndicator color="#F44336" size="small" />
+    <View style={styles.container}>
+      <View style={styles.headerCard}>
+        <View style={styles.avatarWrap}>
+          {user?.avatar ? (
+            <Image source={{ uri: user.avatar }} style={styles.avatar} />
           ) : (
-            <Text style={styles.logoutText}>🚪 Đăng xuất</Text>
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarText}>
+                {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
+              </Text>
+            </View>
           )}
+        </View>
+        <View style={styles.headerInfo}>
+          <Text style={styles.nameText}>{user?.fullName || 'Người dùng'}</Text>
+          <Text style={styles.subText}>{user?.email || '--'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Thông tin tài khoản</Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Họ và tên</Text>
+          <Text style={styles.value}>{user?.fullName || '--'}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Email</Text>
+          <Text style={styles.value}>{user?.email || '--'}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Số điện thoại</Text>
+          <Text style={styles.value}>{user?.phone || '--'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Bảo mật</Text>
+        <TouchableOpacity
+          style={styles.menuRow}
+          onPress={() => navigation.navigate('ChangePassword')}
+          disabled={authState.isLoading}
+        >
+          <Text style={styles.menuLabel}>Đổi mật khẩu</Text>
+          <Text style={styles.menuHint}>›</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>© 2026 FEPA</Text>
-        <Text style={styles.versionText}>v1.0.0</Text>
-      </View>
-    </ScrollView>
+      <TouchableOpacity
+        style={[styles.actionButton, isLoading && styles.disabled]}
+        onPress={loadProfile}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#FFF" />
+        ) : (
+          <Text style={styles.actionText}>Làm mới</Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Đăng xuất</Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.background,
+    padding: Spacing.lg,
   },
-  header: {
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headerCard: {
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 30,
-    backgroundColor: '#2196F3',
+    marginBottom: Spacing.lg,
+    ...Shadow.card,
+  },
+  avatarWrap: {
+    marginRight: 12,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  avatarFallback: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primarySoft,
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#FFF',
+    color: Colors.primary,
   },
-  name: {
+  headerInfo: {
+    flex: 1,
+  },
+  nameText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFF',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
-  email: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+  subText: {
+    marginTop: 4,
+    color: Colors.textSecondary,
   },
-  section: {
-    backgroundColor: '#FFF',
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  sectionCard: {
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadow.soft,
   },
   sectionTitle: {
     fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  row: {
+    marginBottom: 10,
+  },
+  label: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  value: {
+    fontSize: 14,
+    color: Colors.textPrimary,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    marginTop: 4,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  actionButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.md,
   },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '600',
-  },
-  settingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  settingLabel: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  arrow: {
-    fontSize: 18,
-    color: '#999',
+  actionText: {
+    color: '#FFF',
+    fontWeight: '700',
   },
   logoutButton: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: Colors.danger,
     paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#F44336',
+    borderRadius: Radius.lg,
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+  },
+  menuLabel: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  menuHint: {
+    fontSize: 18,
+    color: Colors.textMuted,
   },
   logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#F44336',
+    color: '#FFF',
+    fontWeight: '700',
   },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#999',
-  },
-  versionText: {
-    fontSize: 12,
-    color: '#CCC',
-    marginTop: 4,
+  disabled: {
+    opacity: 0.7,
   },
 });
 

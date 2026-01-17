@@ -9,7 +9,6 @@ import RegisterScreen from '../features/auth/screens/RegisterScreen';
 import ForgotPasswordScreen from '../features/auth/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../features/auth/screens/ResetPasswordScreen';
 import AppStack from './AppStack';
-
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;

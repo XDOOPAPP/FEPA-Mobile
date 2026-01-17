@@ -1,9 +1,12 @@
 import axios from 'axios';
 import { API_BASE_URL, API_ENDPOINTS } from '../../constants/api';
-import { CreateExpenseRequest, Expense } from '../models/Expense';
-import { ExpenseGroupBy, ExpenseSummary } from '../models/ExpenseSummary';
+import {
+  Budget,
+  BudgetWithProgress,
+  CreateBudgetRequest,
+} from '../models/Budget';
 
-class ExpenseRepository {
+class BudgetRepository {
   private apiClient = axios.create({
     baseURL: API_BASE_URL,
     timeout: 30000,
@@ -17,53 +20,48 @@ class ExpenseRepository {
   }
 
   setAuthToken(token: string) {
-    this.apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
+    this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   }
 
   clearAuthToken() {
-    delete this.apiClient.defaults.headers.common.Authorization;
+    delete this.apiClient.defaults.headers.common['Authorization'];
   }
 
-  async getExpenses(): Promise<Expense[]> {
+  async getBudgets(): Promise<Budget[]> {
     try {
-      const response = await this.apiClient.get(API_ENDPOINTS.GET_EXPENSES);
-      return this.unwrapResponse<Expense[]>(response.data);
+      const response = await this.apiClient.get(API_ENDPOINTS.GET_BUDGETS);
+      return this.unwrapResponse<Budget[]>(response.data);
     } catch (error: any) {
       throw this.handleError(error);
     }
   }
 
-  async createExpense(payload: CreateExpenseRequest): Promise<Expense> {
+  async createBudget(payload: CreateBudgetRequest): Promise<Budget> {
     try {
       const response = await this.apiClient.post(
-        API_ENDPOINTS.CREATE_EXPENSE,
+        API_ENDPOINTS.CREATE_BUDGET,
         payload,
       );
-      return this.unwrapResponse<Expense>(response.data);
+      return this.unwrapResponse<Budget>(response.data);
     } catch (error: any) {
       throw this.handleError(error);
     }
   }
 
-  async deleteExpense(id: string): Promise<void> {
+  async deleteBudget(id: string): Promise<void> {
     try {
-      await this.apiClient.delete(API_ENDPOINTS.DELETE_EXPENSE(id));
+      await this.apiClient.delete(API_ENDPOINTS.DELETE_BUDGET(id));
     } catch (error: any) {
       throw this.handleError(error);
     }
   }
 
-  async getExpenseSummary(params?: {
-    from?: string;
-    to?: string;
-    groupBy?: ExpenseGroupBy;
-  }): Promise<ExpenseSummary> {
+  async getBudgetProgress(id: string): Promise<BudgetWithProgress> {
     try {
       const response = await this.apiClient.get(
-        API_ENDPOINTS.GET_EXPENSE_STATS,
-        { params },
+        API_ENDPOINTS.GET_BUDGET_PROGRESS(id),
       );
-      return this.unwrapResponse<ExpenseSummary>(response.data);
+      return this.unwrapResponse<BudgetWithProgress>(response.data);
     } catch (error: any) {
       throw this.handleError(error);
     }
@@ -78,4 +76,4 @@ class ExpenseRepository {
   }
 }
 
-export const expenseRepository = new ExpenseRepository();
+export const budgetRepository = new BudgetRepository();

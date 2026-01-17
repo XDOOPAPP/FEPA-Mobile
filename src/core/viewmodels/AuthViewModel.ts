@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { useBaseViewModel, ViewModelState } from './BaseViewModel';
 import { LoginRequest, LoginResponse, User } from '../models/User';
 import { userRepository } from '../repositories/UserRepository';
@@ -26,17 +26,24 @@ export const useAuthViewModel = () => {
       clearMessages();
       try {
         const response: LoginResponse = await userRepository.login(request);
-        userRepository.setAuthToken(response.token);
+        const authToken = response.token ?? response.accessToken ?? '';
+        if (authToken) {
+          userRepository.setAuthToken(authToken);
+        }
 
         setAuthState(prev => ({
           ...prev,
-          user: response.user,
+          user: response.user ?? null,
           isAuthenticated: true,
-          token: response.token,
+          token: authToken || null,
         }));
 
         setSuccess('Login successful');
-        return response;
+        return {
+          ...response,
+          token: authToken || response.token,
+          accessToken: response.accessToken ?? (authToken || response.token),
+        };
       } catch (error: any) {
         setError(error.message || 'Login failed');
         throw error;
@@ -80,16 +87,23 @@ export const useAuthViewModel = () => {
           email,
           otp,
         );
-        userRepository.setAuthToken(response.accessToken);
+        const authToken = response.token ?? response.accessToken ?? '';
+        if (authToken) {
+          userRepository.setAuthToken(authToken);
+        }
 
         setAuthState(prev => ({
           ...prev,
           isAuthenticated: true,
-          token: response.accessToken,
+          token: authToken || null,
         }));
 
         setSuccess('Tài khoản đã được xác thực thành công');
-        return response;
+        return {
+          ...response,
+          token: authToken || response.token,
+          accessToken: response.accessToken ?? (authToken || response.token),
+        };
       } catch (error: any) {
         setError(error.message || 'OTP verification failed');
         throw error;

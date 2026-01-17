@@ -10,11 +10,14 @@ export const registerApi = async (
 ) => {
   try {
     // Dùng axios thường vì lúc này chưa có Token
-    const response = await axios.post(API_ENDPOINTS.REGISTER, {
-      email: email,
-      password: password,
-      fullName: fullName,
-    });
+    const response = await axios.post(
+      `${API_BASE_URL}${API_ENDPOINTS.REGISTER}`,
+      {
+        email: email,
+        password: password,
+        fullName: fullName,
+      },
+    );
 
     return response.data;
   } catch (error: any) {
@@ -47,9 +50,12 @@ export const loginApi = async (email: string, password: string) => {
 export const refreshTokenApi = async (refreshToken: string) => {
   try {
     // Dùng axios thường vì refresh token được gửi trong body
-    const response = await axios.post(API_ENDPOINTS.REFRESH, {
-      refreshToken: refreshToken,
-    });
+    const response = await axios.post(
+      `${API_BASE_URL}${API_ENDPOINTS.REFRESH}`,
+      {
+        refreshToken: refreshToken,
+      },
+    );
 
     return response.data;
   } catch (error: any) {

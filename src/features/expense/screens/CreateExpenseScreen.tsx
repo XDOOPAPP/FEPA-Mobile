@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useBudget } from '../../../common/hooks/useMVVM';
+import { useExpense } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
 import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
 
@@ -24,67 +24,53 @@ const CATEGORIES = [
   { label: 'Khác', slug: 'other' },
 ];
 
-const CreateBudgetScreen: React.FC = () => {
+const CreateExpenseScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const authContext = useContext(AuthContext);
-  const { createBudget, budgetState } = useBudget(
+  const { createExpense, expenseState } = useExpense(
     authContext?.userToken || null,
   );
 
-  const [name, setName] = useState('');
-  const [limitAmount, setLimitAmount] = useState('');
+  const [amount, setAmount] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0].slug);
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().split('T')[0],
-  );
-  const [endDate, setEndDate] = useState(
-    new Date().toISOString().split('T')[0],
-  );
+  const [note, setNote] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
   const handleSubmit = async () => {
-    const parsedAmount = Number(limitAmount.replace(/[^0-9]/g, ''));
-    if (!name.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập tên ngân sách');
-      return;
-    }
+    const parsedAmount = Number(amount.replace(/[^0-9]/g, ''));
     if (!parsedAmount || parsedAmount <= 0) {
       Alert.alert('Lỗi', 'Vui lòng nhập số tiền hợp lệ');
       return;
     }
 
     try {
-      await createBudget({
-        name: name.trim(),
-        limitAmount: parsedAmount,
+      const categoryLabel =
+        CATEGORIES.find(item => item.slug === category)?.label || 'Chi tiêu';
+      const description = note.trim() || `Chi tiêu ${categoryLabel}`;
+
+      await createExpense({
+        amount: parsedAmount,
         category,
-        startDate: startDate ? new Date(startDate).toISOString() : undefined,
-        endDate: endDate ? new Date(endDate).toISOString() : undefined,
+        description,
+        spentAt: new Date(date).toISOString(),
       });
-      Alert.alert('Thành công', 'Đã tạo ngân sách', [
+      Alert.alert('Thành công', 'Đã thêm chi tiêu', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể tạo ngân sách');
+      Alert.alert('Lỗi', error.message || 'Không thể tạo chi tiêu');
     }
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.label}>Tên ngân sách</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ví dụ: Ngân sách tháng 1"
-        value={name}
-        onChangeText={setName}
-      />
-
-      <Text style={styles.label}>Giới hạn (VND)</Text>
+      <Text style={styles.label}>Số tiền (VND)</Text>
       <TextInput
         style={styles.input}
         placeholder="Nhập số tiền"
         keyboardType="numeric"
-        value={limitAmount}
-        onChangeText={setLimitAmount}
+        value={amount}
+        onChangeText={setAmount}
       />
 
       <Text style={styles.label}>Danh mục</Text>
@@ -110,31 +96,32 @@ const CreateBudgetScreen: React.FC = () => {
         ))}
       </View>
 
-      <Text style={styles.label}>Ngày bắt đầu</Text>
+      <Text style={styles.label}>Ghi chú</Text>
       <TextInput
-        style={styles.input}
-        placeholder="YYYY-MM-DD"
-        value={startDate}
-        onChangeText={setStartDate}
+        style={[styles.input, styles.noteInput]}
+        placeholder="Ghi chú (tuỳ chọn)"
+        value={note}
+        onChangeText={setNote}
+        multiline
       />
 
-      <Text style={styles.label}>Ngày kết thúc</Text>
+      <Text style={styles.label}>Ngày</Text>
       <TextInput
         style={styles.input}
         placeholder="YYYY-MM-DD"
-        value={endDate}
-        onChangeText={setEndDate}
+        value={date}
+        onChangeText={setDate}
       />
 
       <TouchableOpacity
-        style={[styles.submitButton, budgetState.isLoading && styles.disabled]}
+        style={[styles.submitButton, expenseState.isLoading && styles.disabled]}
         onPress={handleSubmit}
-        disabled={budgetState.isLoading}
+        disabled={expenseState.isLoading}
       >
-        {budgetState.isLoading ? (
+        {expenseState.isLoading ? (
           <ActivityIndicator color="#FFF" />
         ) : (
-          <Text style={styles.submitText}>Lưu ngân sách</Text>
+          <Text style={styles.submitText}>Lưu chi tiêu</Text>
         )}
       </TouchableOpacity>
     </ScrollView>
@@ -164,6 +151,10 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     marginBottom: Spacing.md,
     ...Shadow.soft,
+  },
+  noteInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   categoryWrap: {
     flexDirection: 'row',
@@ -207,4 +198,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CreateBudgetScreen;
+export default CreateExpenseScreen;

@@ -14,6 +14,7 @@ export const API_ENDPOINTS = {
   RESET_PASSWORD: '/auth/reset-password',
   CHANGE_PASSWORD: '/auth/change-password',
   LOGOUT: '/auth/logout',
+  REFRESH: '/auth/refresh',
   GET_PROFILE: '/auth/me',
   UPDATE_PROFILE: '/auth/profile',
 
@@ -23,7 +24,7 @@ export const API_ENDPOINTS = {
   CREATE_EXPENSE: '/expenses',
   UPDATE_EXPENSE: (id: string) => `/expenses/${id}`,
   DELETE_EXPENSE: (id: string) => `/expenses/${id}`,
-  GET_EXPENSE_STATS: '/expenses/stats',
+  GET_EXPENSE_STATS: '/expenses/summary',
 
   // Budgets
   GET_BUDGETS: '/budgets',
@@ -31,6 +32,7 @@ export const API_ENDPOINTS = {
   CREATE_BUDGET: '/budgets',
   UPDATE_BUDGET: (id: string) => `/budgets/${id}`,
   DELETE_BUDGET: (id: string) => `/budgets/${id}`,
+  GET_BUDGET_PROGRESS: (id: string) => `/budgets/${id}/progress`,
 };
 
 // Request timeout (ms)

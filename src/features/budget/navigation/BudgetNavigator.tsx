@@ -1,12 +1,14 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import BudgetOverviewScreen from '../screens/BudgetOverviewScreen';
+import BudgetListScreen from '../screens/BudgetListScreen';
 import CreateBudgetScreen from '../screens/CreateBudgetScreen';
+import BudgetProgressScreen from '../screens/BudgetProgressScreen';
+import { Colors } from '../../../constants/theme';
 
 export type BudgetStackParamList = {
-  BudgetOverview: undefined;
-  CreateBudget: { budgetId?: string };
-  SavingGoals: undefined;
+  BudgetList: undefined;
+  CreateBudget: undefined;
+  BudgetProgress: { budgetId: string; name?: string };
 };
 
 const Stack = createNativeStackNavigator<BudgetStackParamList>();
@@ -15,28 +17,26 @@ export const BudgetNavigator = () => {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerShown: true,
         headerTitleAlign: 'center',
-        headerTintColor: '#2196F3',
-        headerTitleStyle: {
-          fontWeight: '700',
-        },
+        headerStyle: { backgroundColor: Colors.card },
+        headerShadowVisible: false,
+        headerTitleStyle: { color: Colors.textPrimary, fontWeight: '700' },
       }}
     >
       <Stack.Screen
-        name="BudgetOverview"
-        component={BudgetOverviewScreen}
-        options={{
-          headerShown: false,
-        }}
+        name="BudgetList"
+        component={BudgetListScreen}
+        options={{ title: 'Ngân sách' }}
       />
       <Stack.Screen
         name="CreateBudget"
         component={CreateBudgetScreen}
-        options={{
-          title: 'Ngân Sách',
-          headerBackTitle: 'Quay Lại',
-        }}
+        options={{ title: 'Thêm ngân sách' }}
+      />
+      <Stack.Screen
+        name="BudgetProgress"
+        component={BudgetProgressScreen}
+        options={{ title: 'Tiến độ ngân sách' }}
       />
     </Stack.Navigator>
   );

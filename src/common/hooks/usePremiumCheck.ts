@@ -1,6 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from './useMVVM';
 
 const MAX_FREE_USES_PER_DAY = 2;
 const FEATURE_KEYS = {
@@ -10,22 +9,27 @@ const FEATURE_KEYS = {
 };
 
 export const usePremiumCheck = () => {
-  const { isPremium } = useAuth();
+  const [isPremium, setIsPremium] = useState(false);
   const [dailyUsage, setDailyUsage] = useState<{ [key: string]: number }>({});
   const [lastResetDate, setLastResetDate] = useState<string>(
     new Date().toDateString(),
   );
 
-  // Load usage counter từ AsyncStorage
+  // Load premium status and usage counter from AsyncStorage
   useEffect(() => {
-    const loadUsageCounter = async () => {
+    const loadData = async () => {
       try {
+        // Load premium status
+        const premiumStatus = await AsyncStorage.getItem('isPremium');
+        setIsPremium(premiumStatus === 'true');
+
+        // Load usage counter
         const stored = await AsyncStorage.getItem('premiumUsageCounter');
         const storedDate = await AsyncStorage.getItem('premiumUsageDate');
         const today = new Date().toDateString();
 
         if (storedDate !== today) {
-          // Nếu ngày khác, reset counter
+          // If date is different, reset counter
           await AsyncStorage.setItem('premiumUsageDate', today);
           await AsyncStorage.setItem('premiumUsageCounter', JSON.stringify({}));
           setDailyUsage({});
@@ -35,11 +39,11 @@ export const usePremiumCheck = () => {
           setLastResetDate(today);
         }
       } catch (error) {
-        console.error('Error loading usage counter:', error);
+        console.error('Error loading premium check data:', error);
       }
     };
 
-    loadUsageCounter();
+    loadData();
   }, []);
 
   // Kiểm tra xem feature có thể dùng không

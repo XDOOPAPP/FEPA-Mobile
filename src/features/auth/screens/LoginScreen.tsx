@@ -18,6 +18,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 type RootStackParamList = {
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { email: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
@@ -28,7 +30,7 @@ interface LoginFormData {
 }
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const { login } = useAuth();
+  const { login, authState } = useAuth();
   const authContext = useContext(AuthContext);
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
@@ -69,10 +71,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       });
 
       // Call AuthContext.login() để update global auth state
-      if (response?.accessToken && authContext) {
+      const authToken =
+        response?.token ?? response?.accessToken ?? authState?.token ?? '';
+      if (authToken && authContext) {
         await authContext.login(
-          response.accessToken,
-          response.refreshToken,
+          authToken,
+          response?.refreshToken,
           undefined, // Sẽ load user từ API sau
         );
       }
@@ -81,7 +85,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [formData, login, validateForm, authContext]);
+  }, [formData, login, validateForm, authContext, authState?.token]);
 
   const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prev => ({

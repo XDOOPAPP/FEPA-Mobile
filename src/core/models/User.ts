@@ -14,9 +14,10 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  token: string;
-  refreshToken: string;
-  user: User;
+  token?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  user?: User;
 }
 
 export interface RegisterRequest {
