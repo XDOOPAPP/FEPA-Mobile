@@ -4,6 +4,7 @@ export interface User {
   email: string;
   fullName: string;
   avatar?: string;
+  twoFactorEnabled?: boolean;
   createdAt?: string;
   updatedAt?: string;
   // Có thể thêm các field khác tùy theo API response

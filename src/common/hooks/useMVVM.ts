@@ -1,6 +1,11 @@
 import { useAuthViewModel } from '../../core/viewmodels/AuthViewModel';
 import { useExpenseViewModel } from '../../core/viewmodels/ExpenseViewModel';
 import { useBudgetViewModel } from '../../core/viewmodels/BudgetViewModel';
+import { useOcrViewModel } from '../../core/viewmodels/OcrViewModel';
+import { useSubscriptionViewModel } from '../../core/viewmodels/SubscriptionViewModel';
+
+// Re-export types for convenience
+export type { ExpenseFilterOptions, PaginatedExpenses } from '../../core/repositories/ExpenseRepository';
 
 /**
  * Custom hook để sử dụng Auth ViewModel
@@ -12,7 +17,19 @@ export const useAuth = () => {
 
 /**
  * Custom hook để sử dụng Expense ViewModel
- * Usage: const { expenseState, getExpenses, createExpense } = useExpense(token);
+ * Usage: 
+ *   const { 
+ *     expenseState, 
+ *     getExpenses, 
+ *     getExpensesFiltered,
+ *     getExpenseById,
+ *     createExpense, 
+ *     updateExpense,
+ *     deleteExpense,
+ *     loadMoreExpenses,
+ *     setFilters,
+ *     getExpenseSummary 
+ *   } = useExpense(token);
  */
 export const useExpense = (token: string | null) => {
   return useExpenseViewModel(token);
@@ -20,10 +37,36 @@ export const useExpense = (token: string | null) => {
 
 /**
  * Custom hook để sử dụng Budget ViewModel
- * Usage: const { budgetState, getBudgets, createBudget } = useBudget(token);
+ * Usage: 
+ *   const { 
+ *     budgetState, 
+ *     getBudgets, 
+ *     getAllBudgetsWithProgress,
+ *     getBudgetById,
+ *     createBudget, 
+ *     updateBudget,
+ *     deleteBudget,
+ *     getBudgetProgress,
+ *     getAlerts 
+ *   } = useBudget(token);
  */
 export const useBudget = (token: string | null) => {
   return useBudgetViewModel(token);
+};
+
+/**
+ * Custom hook để sử dụng Subscription ViewModel
+ */
+export const useSubscription = () => {
+  return useSubscriptionViewModel();
+};
+
+/**
+ * Custom hook để sử dụng OCR ViewModel
+ * Usage: const { scanInvoice, getJob, ocrState } = useOcr(token);
+ */
+export const useOcr = (token: string | null) => {
+  return useOcrViewModel(token);
 };
 
 /**
@@ -46,3 +89,4 @@ export const useApiError = (error: any) => {
 
   return 'An error occurred';
 };
+

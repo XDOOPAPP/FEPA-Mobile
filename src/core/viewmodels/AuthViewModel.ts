@@ -26,10 +26,17 @@ export const useAuthViewModel = () => {
       clearMessages();
       try {
         const response: LoginResponse = await userRepository.login(request);
-        const authToken = response.token ?? response.accessToken ?? '';
-        if (authToken) {
-          userRepository.setAuthToken(authToken);
+        if (response.twoFactorRequired) {
+          setAuthState(prev => ({
+            ...prev,
+            user: response.user ?? null,
+            isAuthenticated: false,
+            token: null,
+          }));
+          return response;
         }
+
+        const authToken = response.token ?? response.accessToken ?? '';
 
         setAuthState(prev => ({
           ...prev,
@@ -88,9 +95,6 @@ export const useAuthViewModel = () => {
           otp,
         );
         const authToken = response.token ?? response.accessToken ?? '';
-        if (authToken) {
-          userRepository.setAuthToken(authToken);
-        }
 
         setAuthState(prev => ({
           ...prev,
@@ -125,6 +129,91 @@ export const useAuthViewModel = () => {
         return response;
       } catch (error: any) {
         setError(error.message || 'Failed to resend OTP');
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError, setSuccess, clearMessages],
+  );
+
+  const requestTwoFactor = useCallback(
+    async (action: 'enable' | 'disable') => {
+      setLoading(true);
+      clearMessages();
+      try {
+        const response = await userRepository.requestTwoFactor(action);
+        setSuccess('OTP đã được gửi');
+        return response;
+      } catch (error: any) {
+        setError(error.message || 'Failed to request 2FA');
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError, setSuccess, clearMessages],
+  );
+
+  const confirmTwoFactor = useCallback(
+    async (action: 'enable' | 'disable', otp: string) => {
+      setLoading(true);
+      clearMessages();
+      try {
+        const response = await userRepository.confirmTwoFactor(action, otp);
+        setSuccess('2FA đã được cập nhật');
+        return response;
+      } catch (error: any) {
+        setError(error.message || 'Failed to confirm 2FA');
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError, setSuccess, clearMessages],
+  );
+
+  const verifyTwoFactorLogin = useCallback(
+    async (tempToken: string, otp: string) => {
+      setLoading(true);
+      clearMessages();
+      try {
+        const response: LoginResponse =
+          await userRepository.verifyTwoFactorLogin(tempToken, otp);
+        const authToken = response.token ?? response.accessToken ?? '';
+
+        setAuthState(prev => ({
+          ...prev,
+          isAuthenticated: true,
+          token: authToken || null,
+        }));
+
+        setSuccess('Login successful');
+        return {
+          ...response,
+          token: authToken || response.token,
+          accessToken: response.accessToken ?? (authToken || response.token),
+        };
+      } catch (error: any) {
+        setError(error.message || 'Failed to verify 2FA login');
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError, setSuccess, clearMessages],
+  );
+
+  const resendTwoFactorLogin = useCallback(
+    async (tempToken: string) => {
+      setLoading(true);
+      clearMessages();
+      try {
+        const response = await userRepository.resendTwoFactorLogin(tempToken);
+        setSuccess('OTP đã được gửi lại');
+        return response;
+      } catch (error: any) {
+        setError(error.message || 'Failed to resend 2FA OTP');
         throw error;
       } finally {
         setLoading(false);
@@ -269,7 +358,6 @@ export const useAuthViewModel = () => {
       isAuthenticated: false,
       token: null,
     });
-    userRepository.clearAuthToken();
   }, []);
 
   return {
@@ -278,6 +366,10 @@ export const useAuthViewModel = () => {
     register,
     verifyOtp,
     resendOtp,
+    requestTwoFactor,
+    confirmTwoFactor,
+    verifyTwoFactorLogin,
+    resendTwoFactorLogin,
     forgotPassword,
     resetPassword,
     changePassword,

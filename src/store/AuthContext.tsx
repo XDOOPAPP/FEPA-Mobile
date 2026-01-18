@@ -118,8 +118,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Load data từ AsyncStorage khi app khởi động
   useEffect(() => {
+    console.log('[AuthContext] useEffect triggered, loading storage data');
     const loadStorageData = async () => {
       try {
+        console.log('[AuthContext] Starting to load from AsyncStorage');
         const [token, storedRefreshToken, userDataString] = await Promise.all([
           AsyncStorage.getItem('userToken'),
           AsyncStorage.getItem('refreshToken'),
@@ -143,18 +145,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
 
-          // Verify token và load user info từ API
-          try {
-            await loadUserInfo();
-          } catch (error) {
-            // Nếu token không hợp lệ, clear data
+          // Verify token và load user info từ API (non-blocking)
+          // Không block UI nếu server không available
+          loadUserInfo().catch(error => {
+            // Nếu token không hợp lệ hoặc server không available, chỉ log error
             console.error('Token validation failed:', error);
-            await clearAuthData();
-          }
+            // Chỉ clear data nếu là lỗi authentication, không phải network error
+            if (error.response?.status === 401 || error.response?.status === 403) {
+              clearAuthData().catch(console.error);
+            }
+          });
         }
       } catch (error) {
-        console.error('Error loading storage data:', error);
+        console.error('[AuthContext] Error loading storage data:', error);
       } finally {
+        console.log('[AuthContext] Setting isLoading to false');
         setIsLoading(false);
       }
     };

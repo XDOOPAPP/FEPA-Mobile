@@ -4,6 +4,7 @@ export interface User {
   fullName: string;
   avatar?: string;
   phone?: string;
+  twoFactorEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -18,6 +19,8 @@ export interface LoginResponse {
   accessToken?: string;
   refreshToken?: string;
   user?: User;
+  twoFactorRequired?: boolean;
+  tempToken?: string;
 }
 
 export interface RegisterRequest {

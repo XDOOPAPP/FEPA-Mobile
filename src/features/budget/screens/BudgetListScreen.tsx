@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useBudget } from '../../../common/hooks/useMVVM';
+import { useAI } from '../../../common/hooks/useAI';
 import { AuthContext } from '../../../store/AuthContext';
-import { Budget } from '../../../core/models/Budget';
+import { BudgetWithProgress } from '../../../core/models/Budget';
 import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -24,20 +25,68 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'Khác',
 };
 
+// Get status color based on progress
+const getStatusColor = (status?: 'SAFE' | 'WARNING' | 'EXCEEDED') => {
+  switch (status) {
+    case 'EXCEEDED':
+      return Colors.danger;
+    case 'WARNING':
+      return Colors.accent;
+    default:
+      return Colors.success;
+  }
+};
+
 const BudgetListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const authContext = useContext(AuthContext);
-  const { budgetState, getBudgets, deleteBudget } = useBudget(
-    authContext?.userToken || null,
-  );
+  const { budgetState, getAllBudgetsWithProgress, deleteBudget, getAlerts } =
+    useBudget(authContext?.userToken || null);
+  const {
+    getBudgetAlerts,
+    loading: aiLoading,
+    error: aiError,
+    result: aiResult,
+  } = useAI(authContext?.userToken || null);
+  const [alertMonth, setAlertMonth] = React.useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}`;
+  });
+  const [alertResult, setAlertResult] = React.useState<{
+    alerts?: Array<{
+      category: string;
+      message: string;
+      spent: number;
+      budget: number;
+      alertLevel: 'warning' | 'danger';
+    }>;
+  } | null>(null);
+  const [alerting, setAlerting] = React.useState(false);
 
+  const handleBudgetAlerts = async () => {
+    setAlerting(true);
+    setAlertResult(null);
+    try {
+      const res = await getBudgetAlerts({ month: alertMonth });
+      setAlertResult(res);
+    } catch (err) {
+      setAlertResult(null);
+    } finally {
+      setAlerting(false);
+    }
+  };
+
+  // Load budgets with progress using new function
   const loadBudgets = useCallback(async () => {
     try {
-      await getBudgets();
+      await getAllBudgetsWithProgress();
     } catch (error: any) {
       Alert.alert('Lỗi', error.message || 'Không thể tải ngân sách');
     }
-  }, [getBudgets]);
+  }, [getAllBudgetsWithProgress]);
 
   useFocusEffect(
     useCallback(() => {
@@ -62,56 +111,93 @@ const BudgetListScreen: React.FC = () => {
     ]);
   };
 
-  const renderItem = ({ item }: { item: Budget }) => (
-    <TouchableOpacity
-      style={styles.itemContainer}
-      activeOpacity={0.85}
-      onPress={() =>
-        navigation.navigate('BudgetProgress', {
-          budgetId: item.id,
-          name: item.name,
-        })
-      }
-    >
-      <View style={styles.itemInfo}>
-        <Text style={styles.nameText}>{item.name}</Text>
-        <Text style={styles.amountText}>
-          {item.limitAmount.toLocaleString()}₫
-        </Text>
-        <Text style={styles.categoryText}>
-          {item.category
-            ? CATEGORY_LABELS[item.category] || item.category
-            : 'Khác'}
-        </Text>
-        <Text style={styles.dateText}>
-          {item.startDate
-            ? new Date(item.startDate).toLocaleDateString('vi-VN')
-            : '--'}
-          {'  →  '}
-          {item.endDate
-            ? new Date(item.endDate).toLocaleDateString('vi-VN')
-            : '--'}
-        </Text>
-      </View>
+  const renderItem = ({ item }: { item: BudgetWithProgress }) => {
+    const progress = item.progress;
+    const percentage = progress?.percentage || 0;
+    const statusColor = getStatusColor(progress?.status);
+    
+    return (
       <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDelete(item.id)}
+        style={styles.itemContainer}
+        activeOpacity={0.85}
+        onPress={() =>
+          navigation.navigate('BudgetProgress', {
+            budgetId: item.id,
+            name: item.name,
+          })
+        }
       >
-        <Text style={styles.deleteText}>Xóa</Text>
+        <View style={styles.itemInfo}>
+          <Text style={styles.nameText}>{item.name}</Text>
+          <Text style={styles.amountText}>
+            {item.limitAmount.toLocaleString()}₫
+          </Text>
+          <Text style={styles.categoryText}>
+            {item.category
+              ? CATEGORY_LABELS[item.category] || item.category
+              : 'Khác'}
+          </Text>
+          
+          {/* Progress Bar */}
+          {progress && (
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(percentage, 100)}%`,
+                      backgroundColor: statusColor,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressText, { color: statusColor }]}>
+                {progress.totalSpent.toLocaleString()}₫ / {item.limitAmount.toLocaleString()}₫ ({Math.round(percentage)}%)
+              </Text>
+            </View>
+          )}
+          
+          <Text style={styles.dateText}>
+            {item.startDate
+              ? new Date(item.startDate).toLocaleDateString('vi-VN')
+              : '--'}
+            {'  →  '}
+            {item.endDate
+              ? new Date(item.endDate).toLocaleDateString('vi-VN')
+              : '--'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDelete(item.id)}
+        >
+          <Text style={styles.deleteText}>Xóa</Text>
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Ngân sách</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('CreateBudget')}
-        >
-          <Text style={styles.addButtonText}>+ Thêm</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleBudgetAlerts}
+          >
+            <Text style={styles.addButtonText}>
+              {alerting || aiLoading ? 'Đang kiểm tra...' : 'Cảnh báo AI'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addButton, { marginLeft: 8 }]}
+            onPress={() => navigation.navigate('CreateBudget')}
+          >
+            <Text style={styles.addButtonText}>+ Thêm</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {budgetState.isLoading ? (
@@ -119,15 +205,57 @@ const BudgetListScreen: React.FC = () => {
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       ) : (
-        <FlatList
-          data={budgetState.budgets}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>Chưa có ngân sách nào.</Text>
-          }
-        />
+        <>
+          <FlatList
+            data={budgetState.budgets}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>Chưa có ngân sách nào.</Text>
+            }
+          />
+          {/* Kết quả cảnh báo ngân sách AI */}
+          {alertResult && alertResult.alerts && (
+            <View
+              style={{
+                marginTop: 16,
+                backgroundColor: '#fffbe6',
+                borderRadius: 8,
+                padding: 12,
+              }}
+            >
+              <Text
+                style={{ color: '#b26a00', fontWeight: '700', marginBottom: 6 }}
+              >
+                Cảnh báo ngân sách (AI):
+              </Text>
+              {alertResult.alerts.length === 0 ? (
+                <Text style={{ color: '#b26a00' }}>
+                  Không có cảnh báo nào trong tháng này.
+                </Text>
+              ) : (
+                alertResult.alerts.map((item, idx) => (
+                  <View key={idx} style={{ marginBottom: 6 }}>
+                    <Text
+                      style={{
+                        color: item.alertLevel === 'danger' ? 'red' : '#b26a00',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {CATEGORY_LABELS[item.category] || item.category}:{' '}
+                      {item.message} (Đã chi: {item.spent.toLocaleString()}₫ /
+                      Ngân sách: {item.budget.toLocaleString()}₫)
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+          {aiError && (
+            <Text style={{ color: 'red', marginTop: 8 }}>{aiError}</Text>
+          )}
+        </>
       )}
     </View>
   );
@@ -207,6 +335,24 @@ const styles = StyleSheet.create({
   deleteText: {
     color: '#FFF',
     fontWeight: '600',
+  },
+  progressContainer: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: Colors.border,
+    borderRadius: 3,
+    overflow: 'hidden' as const,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 11,
+    marginTop: 4,
   },
   emptyText: {
     textAlign: 'center',

@@ -1,16 +1,14 @@
-import axios from 'axios';
-import { API_BASE_URL, API_ENDPOINTS } from '../../constants/api';
+import { axiosInstance } from '../../api/axiosInstance';
+import { API_ENDPOINTS } from '../../constants/api';
 import {
   Budget,
   BudgetWithProgress,
   CreateBudgetRequest,
+  UpdateBudgetRequest,
 } from '../models/Budget';
 
 class BudgetRepository {
-  private apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
-  });
+  private apiClient = axiosInstance;
 
   private unwrapResponse<T>(payload: any): T {
     if (payload && typeof payload === 'object' && 'data' in payload) {
@@ -19,14 +17,9 @@ class BudgetRepository {
     return payload as T;
   }
 
-  setAuthToken(token: string) {
-    this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  }
-
-  clearAuthToken() {
-    delete this.apiClient.defaults.headers.common['Authorization'];
-  }
-
+  /**
+   * Get all budgets
+   */
   async getBudgets(): Promise<Budget[]> {
     try {
       const response = await this.apiClient.get(API_ENDPOINTS.GET_BUDGETS);
@@ -36,6 +29,21 @@ class BudgetRepository {
     }
   }
 
+  /**
+   * Get single budget by ID
+   */
+  async getBudgetById(id: string): Promise<Budget> {
+    try {
+      const response = await this.apiClient.get(API_ENDPOINTS.GET_BUDGET(id));
+      return this.unwrapResponse<Budget>(response.data);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Create new budget
+   */
   async createBudget(payload: CreateBudgetRequest): Promise<Budget> {
     try {
       const response = await this.apiClient.post(
@@ -48,6 +56,24 @@ class BudgetRepository {
     }
   }
 
+  /**
+   * Update existing budget
+   */
+  async updateBudget(id: string, payload: UpdateBudgetRequest): Promise<Budget> {
+    try {
+      const response = await this.apiClient.patch(
+        API_ENDPOINTS.UPDATE_BUDGET(id),
+        payload,
+      );
+      return this.unwrapResponse<Budget>(response.data);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Delete budget
+   */
   async deleteBudget(id: string): Promise<void> {
     try {
       await this.apiClient.delete(API_ENDPOINTS.DELETE_BUDGET(id));
@@ -56,12 +82,45 @@ class BudgetRepository {
     }
   }
 
+  /**
+   * Get budget with progress (spending vs limit)
+   */
   async getBudgetProgress(id: string): Promise<BudgetWithProgress> {
     try {
       const response = await this.apiClient.get(
         API_ENDPOINTS.GET_BUDGET_PROGRESS(id),
       );
       return this.unwrapResponse<BudgetWithProgress>(response.data);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Get all budgets with their progress
+   */
+  async getAllBudgetsWithProgress(): Promise<BudgetWithProgress[]> {
+    try {
+      const budgets = await this.getBudgets();
+      const budgetsWithProgress = await Promise.all(
+        budgets.map(async (budget) => {
+          try {
+            return await this.getBudgetProgress(budget.id);
+          } catch {
+            // If progress fails, return budget with default progress
+            return {
+              ...budget,
+              progress: {
+                totalSpent: 0,
+                remaining: budget.limitAmount,
+                percentage: 0,
+                status: 'SAFE' as const,
+              },
+            };
+          }
+        }),
+      );
+      return budgetsWithProgress;
     } catch (error: any) {
       throw this.handleError(error);
     }

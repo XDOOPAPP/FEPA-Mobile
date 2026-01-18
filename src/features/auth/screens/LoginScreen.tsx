@@ -10,16 +10,19 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { useAuth } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/theme';
 
 type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
+  TwoFactorLogin: { email: string; tempToken: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
@@ -38,6 +41,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   });
   const [errors, setErrors] = useState<Partial<LoginFormData>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Validate form
   const validateForm = useCallback(() => {
@@ -70,14 +74,21 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         password: formData.password,
       });
 
-      // Call AuthContext.login() để update global auth state
+      if (response?.twoFactorRequired && response?.tempToken) {
+        navigation.navigate('TwoFactorLogin', {
+          email: formData.email.trim(),
+          tempToken: response.tempToken,
+        });
+        return;
+      }
+
       const authToken =
         response?.token ?? response?.accessToken ?? authState?.token ?? '';
       if (authToken && authContext) {
         await authContext.login(
           authToken,
           response?.refreshToken,
-          undefined, // Sẽ load user từ API sau
+          undefined,
         );
       }
     } catch (error: any) {
@@ -85,14 +96,20 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [formData, login, validateForm, authContext, authState?.token]);
+  }, [
+    formData,
+    login,
+    validateForm,
+    authContext,
+    authState?.token,
+    navigation,
+  ]);
 
   const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
-    // Clear error for this field when user starts typing
     if (errors[field]) {
       setErrors(prev => ({
         ...prev,
@@ -106,28 +123,45 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.logo}>FEPA</Text>
-          <Text style={styles.subtitle}>Ứng dụng Quản lý Chi tiêu</Text>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header with Gradient */}
+        <View style={styles.headerGradient}>
+          <View style={styles.headerContent}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logo}>FEPA</Text>
+              <View style={styles.logoUnderline} />
+            </View>
+            <Text style={styles.subtitle}>Quản lý tài chính thông minh</Text>
+            <Text style={styles.tagline}>Theo dõi chi tiêu, lập kế hoạch tương lai</Text>
+          </View>
         </View>
 
         {/* Form Container */}
         <View style={styles.formContainer}>
+          <Text style={styles.formTitle}>Đăng nhập</Text>
+          
           {/* Email Input */}
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Địa chỉ Email</Text>
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              placeholder="Nhập email của bạn"
-              placeholderTextColor="#999"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isLoading}
-              value={formData.email}
-              onChangeText={value => handleInputChange('email', value)}
-            />
+            <Text style={styles.label}>Email</Text>
+            <View style={[
+              styles.inputContainer,
+              errors.email && styles.inputContainerError
+            ]}>
+              <TextInput
+                style={styles.input}
+                placeholder="your@email.com"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+                value={formData.email}
+                onChangeText={value => handleInputChange('email', value)}
+              />
+            </View>
             {errors.email && (
               <Text style={styles.errorText}>{errors.email}</Text>
             )}
@@ -136,15 +170,28 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           {/* Password Input */}
           <View style={styles.inputWrapper}>
             <Text style={styles.label}>Mật khẩu</Text>
-            <TextInput
-              style={[styles.input, errors.password && styles.inputError]}
-              placeholder="Nhập mật khẩu"
-              placeholderTextColor="#999"
-              secureTextEntry
-              editable={!isLoading}
-              value={formData.password}
-              onChangeText={value => handleInputChange('password', value)}
-            />
+            <View style={[
+              styles.inputContainer,
+              errors.password && styles.inputContainerError
+            ]}>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={Colors.textMuted}
+                secureTextEntry={!showPassword}
+                editable={!isLoading}
+                value={formData.password}
+                onChangeText={value => handleInputChange('password', value)}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+              >
+                <Text style={styles.eyeButtonText}>
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </Text>
+              </TouchableOpacity>
+            </View>
             {errors.password && (
               <Text style={styles.errorText}>{errors.password}</Text>
             )}
@@ -163,6 +210,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             style={[styles.loginButton, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={isLoading}
+            activeOpacity={0.8}
           >
             {isLoading ? (
               <ActivityIndicator color="#FFF" size="small" />
@@ -171,18 +219,20 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>hoặc</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           {/* Register Link */}
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Chưa có tài khoản? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.registerLink}>Đăng ký</Text>
+              <Text style={styles.registerLink}>Đăng ký ngay</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2026 FEPA. Bảo lưu mọi quyền.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -192,91 +242,140 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
   },
-  headerContainer: {
+  headerGradient: {
+    backgroundColor: Colors.primary,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
+    borderBottomLeftRadius: Radius.xxl,
+    borderBottomRightRadius: Radius.xxl,
+  },
+  headerContent: {
     alignItems: 'center',
-    marginBottom: 40,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
   },
   logo: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#2196F3',
-    marginBottom: 8,
+    ...Typography.h1,
+    color: Colors.textInverse,
+    marginBottom: Spacing.xs,
+  },
+  logoUnderline: {
+    width: 60,
+    height: 4,
+    backgroundColor: Colors.accentLight,
+    borderRadius: Radius.xs,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    ...Typography.h3,
+    color: Colors.textInverse,
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  tagline: {
+    ...Typography.caption,
+    color: Colors.primarySoft,
+    textAlign: 'center',
   },
   formContainer: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Colors.card,
+    marginTop: -Spacing.xl,
+    marginHorizontal: Spacing.lg,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+    ...Shadow.lg,
+  },
+  formTitle: {
+    ...Typography.h3,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
   },
   inputWrapper: {
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    ...Typography.captionBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    minHeight: 52,
+  },
+  inputContainerError: {
+    borderColor: Colors.danger,
+    backgroundColor: Colors.dangerLight,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#333',
-    backgroundColor: '#F9F9F9',
+    flex: 1,
+    ...Typography.body,
+    color: Colors.textPrimary,
+    paddingVertical: Spacing.md,
   },
-  inputError: {
-    borderColor: '#F44336',
-    backgroundColor: '#FFEBEE',
+  eyeButton: {
+    padding: Spacing.xs,
+  },
+  eyeButtonText: {
+    fontSize: 20,
   },
   errorText: {
-    color: '#F44336',
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
+    ...Typography.small,
+    color: Colors.danger,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.xs,
   },
   forgotContainer: {
     alignItems: 'flex-end',
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   forgotText: {
-    color: '#2196F3',
-    fontSize: 13,
-    fontWeight: '500',
+    ...Typography.captionBold,
+    color: Colors.primary,
   },
   loginButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 14,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md + 2,
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+    ...Shadow.md,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
+    ...Typography.bodyBold,
+    color: Colors.textInverse,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    ...Typography.small,
+    color: Colors.textMuted,
+    marginHorizontal: Spacing.md,
   },
   registerContainer: {
     flexDirection: 'row',
@@ -284,21 +383,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   registerText: {
-    color: '#666',
-    fontSize: 13,
+    ...Typography.body,
+    color: Colors.textSecondary,
   },
   registerLink: {
-    color: '#2196F3',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  footer: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  footerText: {
-    color: '#999',
-    fontSize: 12,
+    ...Typography.bodyBold,
+    color: Colors.primary,
   },
 });
 
