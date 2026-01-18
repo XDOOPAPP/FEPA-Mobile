@@ -1,13 +1,12 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProfileScreen from '../screens/ProfileScreen';
+import { Colors } from '../../../constants/theme';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
-import ThemeSettingsScreen from '../screens/ThemeSettingsScreen';
 
 export type ProfileStackParamList = {
-  ProfileHome: undefined;
+  ProfileMain: undefined;
   ChangePassword: undefined;
-  ThemeSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
@@ -16,12 +15,22 @@ export const ProfileNavigator = () => {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerShown: false,
+        headerTitleAlign: 'center',
+        headerStyle: { backgroundColor: Colors.card },
+        headerShadowVisible: false,
+        headerTitleStyle: { color: Colors.textPrimary, fontWeight: '700' },
       }}
     >
-      <Stack.Screen name="ProfileHome" component={ProfileScreen} />
-      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-      <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />
+      <Stack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{ title: 'Hồ sơ' }}
+      />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
+        options={{ title: 'Đổi mật khẩu' }}
+      />
     </Stack.Navigator>
   );
 };

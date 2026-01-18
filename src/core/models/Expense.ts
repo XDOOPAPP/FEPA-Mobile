@@ -1,39 +1,45 @@
-export enum ExpenseCategory {
-  FOOD = 'food',
-  TRANSPORT = 'transport',
-  ENTERTAINMENT = 'entertainment',
-  UTILITIES = 'utilities',
-  HEALTH = 'health',
-  SHOPPING = 'shopping',
-  OTHER = 'other',
-}
+// Expense categories
+export type ExpenseCategory = 
+  | 'food'
+  | 'transport'
+  | 'shopping'
+  | 'utilities'
+  | 'entertainment'
+  | 'health'
+  | 'education'
+  | 'other';
 
 export interface Expense {
   id: string;
-  userId: string;
-  title: string;
+  userId?: string;
   amount: number;
-  category: ExpenseCategory;
-  description?: string;
-  date: string;
-  receipt?: string;
-  createdAt: string;
-  updatedAt: string;
+  description: string;
+  category?: ExpenseCategory | string;
+  spentAt: string;
+  receiptUrl?: string;
+  notes?: string;
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateExpenseRequest {
-  title: string;
   amount: number;
-  category: ExpenseCategory;
-  description?: string;
-  date: string;
-  receipt?: string;
+  description: string;
+  category?: ExpenseCategory | string;
+  spentAt: string;
+  receiptUrl?: string;
+  notes?: string;
+  tags?: string[];
 }
 
-export interface ExpenseFilter {
-  startDate?: string;
-  endDate?: string;
-  category?: ExpenseCategory;
-  minAmount?: number;
-  maxAmount?: number;
+export interface UpdateExpenseRequest {
+  amount?: number;
+  description?: string;
+  category?: ExpenseCategory | string;
+  spentAt?: string;
+  receiptUrl?: string;
+  notes?: string;
+  tags?: string[];
 }
+

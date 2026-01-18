@@ -1,33 +1,45 @@
 export interface Budget {
   id: string;
-  userId: string;
-  category: string;
-  limit: number;
-  spent: number;
-  period: 'monthly' | 'yearly';
-  startDate: string;
-  endDate: string;
-  createdAt: string;
-  updatedAt: string;
+  userId?: string;
+  name: string;
+  category?: string;
+  limitAmount: number;
+  currentSpent?: number;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+export interface BudgetProgress {
+  totalSpent: number;
+  remaining: number;
+  percentage: number;
+  status: 'SAFE' | 'WARNING' | 'EXCEEDED';
+  daysRemaining?: number;
+  dailyAvgSpent?: number;
+  projectedOverspend?: number;
+}
+
+export type BudgetWithProgress = Budget & {
+  progress?: BudgetProgress;
+};
 
 export interface CreateBudgetRequest {
-  category: string;
-  limit: number;
-  period: 'monthly' | 'yearly';
-  startDate: string;
-  endDate: string;
-}
-
-export interface UpdateBudgetRequest {
-  limit?: number;
-  period?: 'monthly' | 'yearly';
+  name: string;
+  limitAmount: number;
+  category?: string;
+  startDate?: string;
   endDate?: string;
 }
 
-export interface BudgetStatus {
-  budget: Budget;
-  percentageUsed: number;
-  remaining: number;
-  isExceeded: boolean;
+export interface UpdateBudgetRequest {
+  name?: string;
+  limitAmount?: number;
+  category?: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
 }
+

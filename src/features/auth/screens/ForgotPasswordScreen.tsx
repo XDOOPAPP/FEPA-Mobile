@@ -16,8 +16,9 @@ import { useAuth } from '../../../common/hooks/useMVVM';
 
 type RootStackParamList = {
   Login: undefined;
+  Register: undefined;
   ForgotPassword: undefined;
-  ResetPassword: { email: string } | undefined;
+  ResetPassword: { email: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ForgotPassword'>;

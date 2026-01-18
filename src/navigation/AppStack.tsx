@@ -1,81 +1,106 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
-import HomeScreen from '../features/expense/screens/HomeScreen';
-import { ExpenseNavigator } from '../features/expenses/navigation/ExpenseNavigator';
-import { BudgetNavigator } from '../features/budgets/navigation/BudgetNavigator';
-import { ProfileNavigator } from '../features/profile/navigation/ProfileNavigator';
+import {
+  createBottomTabNavigator,
+  BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs';
+import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import ExpenseNavigator from '../features/expense/navigation/ExpenseNavigator';
+import PlanningNavigator from '../features/planning/navigation/PlanningNavigator';
+import EducationNavigator from '../features/education/navigation/EducationNavigator';
+import DashboardScreen from '../features/dashboard/screens/DashboardScreen';
+import OCRScanScreen from '../features/ocr/screens/OCRScanScreen';
+import { Colors, Shadow } from '../constants/theme';
 
-export type AppStackParamList = {
-  Dashboard: undefined;
+export type AppTabParamList = {
+  DashboardTab: undefined;
   ExpenseTab: undefined;
-  BudgetTab: undefined;
-  ProfileTab: undefined;
+  OCRTab: undefined;
+  PlanningTab: undefined;
+  EducationTab: undefined;
 };
 
-const Stack = createNativeStackNavigator<AppStackParamList>();
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<AppTabParamList>();
+
+const CenterTabButton = ({ onPress }: BottomTabBarButtonProps) => {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.centerWrap}>
+      <View style={styles.centerButton}>
+        <Text style={styles.centerText}>Quét</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const AppStack = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#2196F3',
-        tabBarInactiveTintColor: '#999',
         headerShown: false,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E5E7EB',
+          borderTopWidth: 1,
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 8,
         },
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
       }}
     >
       <Tab.Screen
-        name="Dashboard"
-        component={HomeScreen}
-        options={{
-          title: 'Trang chủ',
-          tabBarLabel: 'Trang chủ',
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 20, color }}>🏠</Text>
-          ),
-        }}
+        name="DashboardTab"
+        component={DashboardScreen}
+        options={{ title: 'Tổng quan' }}
       />
       <Tab.Screen
         name="ExpenseTab"
         component={ExpenseNavigator}
+        options={{ title: 'Giao dịch' }}
+      />
+      <Tab.Screen
+        name="OCRTab"
+        component={OCRScanScreen}
         options={{
-          title: 'Chi tiêu',
-          tabBarLabel: 'Chi tiêu',
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 20, color }}>💰</Text>
-          ),
+          title: 'Quét',
+          tabBarButton: CenterTabButton,
+          tabBarLabel: () => null,
         }}
       />
       <Tab.Screen
-        name="BudgetTab"
-        component={BudgetNavigator}
-        options={{
-          title: 'Ngân sách',
-          tabBarLabel: 'Ngân sách',
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 20, color }}>📊</Text>
-          ),
-        }}
+        name="PlanningTab"
+        component={PlanningNavigator}
+        options={{ title: 'Kế hoạch' }}
       />
       <Tab.Screen
-        name="ProfileTab"
-        component={ProfileNavigator}
-        options={{
-          title: 'Tài khoản',
-          tabBarLabel: 'Tài khoản',
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 20, color }}>👤</Text>
-          ),
-        }}
+        name="EducationTab"
+        component={EducationNavigator}
+        options={{ title: 'Cá nhân' }}
       />
     </Tab.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  centerWrap: {
+    top: -16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 999,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.card,
+  },
+  centerText: {
+    color: '#FFF',
+    fontWeight: '700',
+  },
+});
 
 export default AppStack;

@@ -8,13 +8,16 @@ import LoginScreen from '../features/auth/screens/LoginScreen';
 import RegisterScreen from '../features/auth/screens/RegisterScreen';
 import ForgotPasswordScreen from '../features/auth/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../features/auth/screens/ResetPasswordScreen';
-import AppStack from './AppStack';
+import TwoFactorLoginScreen from '../features/auth/screens/TwoFactorLoginScreen';
+import MainTabNavigator from './MainTabNavigator';
 
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
+  TwoFactorLogin: { email: string; tempToken: string };
+  Auth: undefined;
   Main: undefined;
 };
 
@@ -25,37 +28,44 @@ const AuthNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animationEnabled: true,
+        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="TwoFactorLogin" component={TwoFactorLoginScreen} />
     </Stack.Navigator>
   );
 };
 
 const RootNavigator = () => {
+  console.log('[RootNavigator] Rendering RootNavigator');
   const authContext = useContext(AuthContext);
 
   if (!authContext) {
+    console.log('[RootNavigator] AuthContext is null, showing loading');
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#F4F6FB' }}>
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
 
   const { isAuthenticated, isLoading } = authContext;
+  console.log('[RootNavigator] isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
 
   if (isLoading) {
+    console.log('[RootNavigator] Still loading, showing ActivityIndicator');
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#F4F6FB' }}>
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
+  
+  console.log('[RootNavigator] Loading complete, rendering NavigationContainer');
 
   return (
     <NavigationContainer>
@@ -64,13 +74,13 @@ const RootNavigator = () => {
           <Stack.Screen
             name="Auth"
             component={AuthNavigator}
-            options={{ animationEnabled: false }}
+            options={{ animation: 'none' }}
           />
         ) : (
           <Stack.Screen
             name="Main"
-            component={AppStack}
-            options={{ animationEnabled: false }}
+            component={MainTabNavigator}
+            options={{ animation: 'none' }}
           />
         )}
       </Stack.Navigator>

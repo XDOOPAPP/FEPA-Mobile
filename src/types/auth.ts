@@ -4,6 +4,7 @@ export interface User {
   email: string;
   fullName: string;
   avatar?: string;
+  twoFactorEnabled?: boolean;
   createdAt?: string;
   updatedAt?: string;
   // Có thể thêm các field khác tùy theo API response
@@ -25,13 +26,18 @@ export interface AuthContextType {
   isLoading: boolean;
   isRefreshing: boolean;
   isAuthenticated: boolean;
-  
+  isPremium: boolean;
+  premiumExpiry: string | null;
+
   // Functions
-  login: (token: string, refreshToken?: string, userData?: User) => Promise<void>;
+  login: (
+    token: string,
+    refreshToken?: string,
+    userData?: User,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   loadUserInfo: () => Promise<void>;
   refreshAuthToken: () => Promise<boolean>;
   checkTokenValidity: () => Promise<boolean>;
   updateUser: (userData: User) => void;
 }
-

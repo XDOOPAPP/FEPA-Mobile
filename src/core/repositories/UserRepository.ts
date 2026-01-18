@@ -1,26 +1,14 @@
-import axios from 'axios';
 import {
   LoginRequest,
   LoginResponse,
   RegisterRequest,
-  RegisterResponse,
   User,
 } from '../models/User';
-import { API_BASE_URL, API_ENDPOINTS } from '../../constants/api';
+import { axiosInstance } from '../../api/axiosInstance';
+import { API_ENDPOINTS } from '../../constants/api';
 
 class UserRepository {
-  private apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
-  });
-
-  setAuthToken(token: string) {
-    this.apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  }
-
-  clearAuthToken() {
-    delete this.apiClient.defaults.headers.common['Authorization'];
-  }
+  private apiClient = axiosInstance;
 
   async login(request: LoginRequest): Promise<LoginResponse> {
     try {
@@ -72,6 +60,64 @@ class UserRepository {
       const response = await this.apiClient.post(API_ENDPOINTS.RESEND_OTP, {
         email,
       });
+      return response.data;
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  async requestTwoFactor(action: 'enable' | 'disable'): Promise<any> {
+    try {
+      const response = await this.apiClient.post(API_ENDPOINTS.TWO_FA_REQUEST, {
+        action,
+      });
+      return response.data;
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  async confirmTwoFactor(
+    action: 'enable' | 'disable',
+    otp: string,
+  ): Promise<any> {
+    try {
+      const response = await this.apiClient.post(API_ENDPOINTS.TWO_FA_CONFIRM, {
+        action,
+        otp,
+      });
+      return response.data;
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  async verifyTwoFactorLogin(
+    tempToken: string,
+    otp: string,
+  ): Promise<LoginResponse> {
+    try {
+      const response = await this.apiClient.post(
+        API_ENDPOINTS.TWO_FA_LOGIN_VERIFY,
+        {
+          tempToken,
+          otp,
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  async resendTwoFactorLogin(tempToken: string): Promise<any> {
+    try {
+      const response = await this.apiClient.post(
+        API_ENDPOINTS.TWO_FA_LOGIN_RESEND,
+        {
+          tempToken,
+        },
+      );
       return response.data;
     } catch (error: any) {
       throw this.handleError(error);
@@ -161,10 +207,7 @@ class UserRepository {
   async logout(): Promise<void> {
     try {
       await this.apiClient.post(API_ENDPOINTS.LOGOUT);
-      this.clearAuthToken();
     } catch (error: any) {
-      // Vẫn clear token ngay cả khi API fail
-      this.clearAuthToken();
       throw this.handleError(error);
     }
   }

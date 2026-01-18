@@ -116,4 +116,11 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+    implementation project(':react-native-voice_voice')
 }
+
+project.ext.vectoricons = [
+    iconFontNames: [ 'Ionicons.ttf', 'MaterialCommunityIcons.ttf' ] // Add fonts you want to use
+]
+
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"

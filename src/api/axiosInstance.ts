@@ -1,10 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_ENDPOINTS } from '../constants/configs';
+import { API_ENDPOINTS, API_BASE_URL } from '../constants/api';
 
 const axiosInstance = axios.create({
-  timeout: 10000,
-  headers: { 'Content-Type': 'application/json' }
+  baseURL: API_BASE_URL,
+  timeout: 30000, // Increased from 10s to 30s for emulator
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // Flag để tránh refresh token nhiều lần đồng thời
@@ -15,14 +16,14 @@ let failedQueue: Array<{
 }> = [];
 
 const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
+  failedQueue.forEach(prom => {
     if (error) {
       prom.reject(error);
     } else {
       prom.resolve(token);
     }
   });
-  
+
   failedQueue = [];
 };
 
@@ -32,17 +33,21 @@ axiosInstance.interceptors.request.use(
     const token = await AsyncStorage.getItem('userToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No token found in AsyncStorage');
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  error => Promise.reject(error),
 );
 
 // Response interceptor để tự động refresh token khi 401
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  response => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
 
     // Nếu lỗi 401 và chưa retry
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -51,13 +56,13 @@ axiosInstance.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
+          .then(token => {
             if (originalRequest.headers) {
               originalRequest.headers.Authorization = `Bearer ${token}`;
             }
             return axiosInstance(originalRequest);
           })
-          .catch((err) => {
+          .catch(err => {
             return Promise.reject(err);
           });
       }
@@ -67,7 +72,7 @@ axiosInstance.interceptors.response.use(
 
       try {
         const refreshToken = await AsyncStorage.getItem('refreshToken');
-        
+
         if (!refreshToken) {
           // Không có refresh token → clear data và reject
           await Promise.all([
@@ -81,11 +86,13 @@ axiosInstance.interceptors.response.use(
         }
 
         // Gọi API refresh token
-        const response = await axios.post(API_ENDPOINTS.REFRESH, {
-          refreshToken: refreshToken,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}${API_ENDPOINTS.REFRESH}`,
+          { refreshToken: refreshToken },
+        );
 
-        const { token: newToken, refreshToken: newRefreshToken } = response.data;
+        const { token: newToken, refreshToken: newRefreshToken } =
+          response.data;
 
         if (newToken) {
           // Lưu token mới
@@ -114,16 +121,17 @@ axiosInstance.interceptors.response.use(
           AsyncStorage.removeItem('refreshToken'),
           AsyncStorage.removeItem('userData'),
         ]);
-        
+
         processQueue(refreshError, null);
         isRefreshing = false;
-        
+
         return Promise.reject(refreshError);
       }
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
+export { axiosInstance };
 export default axiosInstance;

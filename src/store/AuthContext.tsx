@@ -3,7 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContextType, User } from '../types/auth';
 import { getMeApi, refreshTokenApi } from '../features/auth/authService';
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
+);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userToken, setUserToken] = useState<string | null>(null);
@@ -11,6 +13,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [premiumExpiry, setPremiumExpiry] = useState<string | null>(null);
 
   // Computed value
   const isAuthenticated = !!userToken;
@@ -20,7 +24,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUserToken(null);
     setRefreshToken(null);
     setUser(null);
-    
+
     await Promise.all([
       AsyncStorage.removeItem('userToken'),
       AsyncStorage.removeItem('refreshToken'),
@@ -59,29 +63,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsRefreshing(true);
     try {
       const response = await refreshTokenApi(refreshToken);
-      
+
       if (response.token) {
         const newToken = response.token;
         const newRefreshToken = response.refreshToken || refreshToken;
-        
+
         setUserToken(newToken);
         setRefreshToken(newRefreshToken);
-        
+
         await AsyncStorage.setItem('userToken', newToken);
         if (newRefreshToken) {
           await AsyncStorage.setItem('refreshToken', newRefreshToken);
         }
-        
+
         setIsRefreshing(false);
         return true;
       }
-      
+
       setIsRefreshing(false);
       return false;
     } catch (error: any) {
       console.error('Error refreshing token:', error);
       setIsRefreshing(false);
-      
+
       // Nếu refresh token hết hạn → clear data
       await clearAuthData();
       return false;
@@ -114,8 +118,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Load data từ AsyncStorage khi app khởi động
   useEffect(() => {
+    console.log('[AuthContext] useEffect triggered, loading storage data');
     const loadStorageData = async () => {
       try {
+        console.log('[AuthContext] Starting to load from AsyncStorage');
         const [token, storedRefreshToken, userDataString] = await Promise.all([
           AsyncStorage.getItem('userToken'),
           AsyncStorage.getItem('refreshToken'),
@@ -124,7 +130,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (token) {
           setUserToken(token);
-          
+
           if (storedRefreshToken) {
             setRefreshToken(storedRefreshToken);
           }
@@ -139,18 +145,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
 
-          // Verify token và load user info từ API
-          try {
-            await loadUserInfo();
-          } catch (error) {
-            // Nếu token không hợp lệ, clear data
+          // Verify token và load user info từ API (non-blocking)
+          // Không block UI nếu server không available
+          loadUserInfo().catch(error => {
+            // Nếu token không hợp lệ hoặc server không available, chỉ log error
             console.error('Token validation failed:', error);
-            await clearAuthData();
-          }
+            // Chỉ clear data nếu là lỗi authentication, không phải network error
+            if (error.response?.status === 401 || error.response?.status === 403) {
+              clearAuthData().catch(console.error);
+            }
+          });
         }
       } catch (error) {
-        console.error('Error loading storage data:', error);
+        console.error('[AuthContext] Error loading storage data:', error);
       } finally {
+        console.log('[AuthContext] Setting isLoading to false');
         setIsLoading(false);
       }
     };
@@ -159,31 +168,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [loadUserInfo, clearAuthData]); // Chỉ chạy 1 lần khi mount
 
   // Login function
-  const login = useCallback(async (
-    token: string, 
-    refreshTokenParam?: string, 
-    userData?: User
-  ) => {
-    setUserToken(token);
-    await AsyncStorage.setItem('userToken', token);
+  const login = useCallback(
+    async (token: string, refreshTokenParam?: string, userData?: User) => {
+      setUserToken(token);
+      await AsyncStorage.setItem('userToken', token);
 
-    if (refreshTokenParam) {
-      setRefreshToken(refreshTokenParam);
-      await AsyncStorage.setItem('refreshToken', refreshTokenParam);
-    }
-
-    if (userData) {
-      setUser(userData);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
-    } else {
-      // Nếu chưa có userData, load từ API
-      try {
-        await loadUserInfo();
-      } catch (error) {
-        console.error('Error loading user info after login:', error);
+      if (refreshTokenParam) {
+        setRefreshToken(refreshTokenParam);
+        await AsyncStorage.setItem('refreshToken', refreshTokenParam);
       }
-    }
-  }, [loadUserInfo]);
+
+      if (userData) {
+        setUser(userData);
+        await AsyncStorage.setItem('userData', JSON.stringify(userData));
+      } else {
+        // Nếu chưa có userData, load từ API
+        try {
+          await loadUserInfo();
+        } catch (error) {
+          console.error('Error loading user info after login:', error);
+        }
+      }
+    },
+    [loadUserInfo],
+  );
 
   // Logout function
   const logout = useCallback(async () => {
@@ -197,6 +205,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isLoading,
     isRefreshing,
     isAuthenticated,
+    isPremium,
+    premiumExpiry,
     login,
     logout,
     loadUserInfo,
@@ -205,9 +215,5 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     updateUser,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
