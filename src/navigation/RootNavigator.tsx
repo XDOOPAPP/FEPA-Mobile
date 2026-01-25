@@ -10,6 +10,7 @@ import ForgotPasswordScreen from '../features/auth/screens/ForgotPasswordScreen'
 import ResetPasswordScreen from '../features/auth/screens/ResetPasswordScreen';
 import TwoFactorLoginScreen from '../features/auth/screens/TwoFactorLoginScreen';
 import MainTabNavigator from './MainTabNavigator';
+import NotificationScreen from '../features/notification/screens/NotificationScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -19,6 +20,7 @@ export type RootStackParamList = {
   TwoFactorLogin: { email: string; tempToken: string };
   Auth: undefined;
   Main: undefined;
+  Notifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -77,11 +79,21 @@ const RootNavigator = () => {
             options={{ animation: 'none' }}
           />
         ) : (
-          <Stack.Screen
-            name="Main"
-            component={MainTabNavigator}
-            options={{ animation: 'none' }}
-          />
+          <Stack.Group>
+            <Stack.Screen
+              name="Main"
+              component={MainTabNavigator}
+              options={{ animation: 'none' }}
+            />
+            <Stack.Screen 
+              name="Notifications" 
+              component={NotificationScreen}
+              options={{ 
+                headerShown: false,
+                animation: 'slide_from_right' 
+              }}
+            />
+          </Stack.Group>
         )}
       </Stack.Navigator>
     </NavigationContainer>
