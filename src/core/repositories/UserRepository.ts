@@ -19,6 +19,18 @@ class UserRepository {
     }
   }
 
+  async socialLogin(request: {
+    idToken: string;
+    provider: string;
+  }): Promise<LoginResponse> {
+    try {
+      const response = await this.apiClient.post(API_ENDPOINTS.SOCIAL_LOGIN, request);
+      return response.data;
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
   /**
    * Đăng ký - Gửi OTP
    * Response: { message: "OTP sent to email. Please verify your account." }
