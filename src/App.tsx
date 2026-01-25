@@ -3,6 +3,7 @@ import { View, Text } from 'react-native';
 import { AuthProvider } from './store/AuthContext';
 import { OCRProvider } from './store/OCRContext';
 import RootNavigator from './navigation/RootNavigator';
+import { NotificationBanner } from './components/NotificationBanner';
 
 const App = () => {
   console.log('[App] Rendering App component');
@@ -11,6 +12,7 @@ const App = () => {
     <AuthProvider>
       <OCRProvider>
         <RootNavigator />
+        <NotificationBanner />
       </OCRProvider>
     </AuthProvider>
   );

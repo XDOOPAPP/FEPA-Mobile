@@ -21,6 +21,7 @@ export const Colors = {
   primaryDark: '#0284C7', // Sky 600
   primaryLight: '#38BDF8', // Sky 400
   primaryHighlight: 'rgba(14, 165, 233, 0.1)', // Sky 500 with low opacity for backgrounds
+  primarySoft: 'rgba(14, 165, 233, 0.1)', // Alias for compatibility
   
   // Gradients (Refined for Light Mode)
   primaryGradient: ['#0EA5E9', '#2563EB'] as [string, string], // Sky to Blue (Vibrant)
@@ -31,10 +32,12 @@ export const Colors = {
   // Accents
   accent: '#F59E0B', // Amber 500
   accentHover: '#D97706',
+  accentLight: '#FDE68A', // Amber 200
   
   // Functional Status
   success: '#10B981', 
   danger: '#F43F5E', // Rose 500 (Softer than pure red)
+  dangerLight: '#FECACA', // Rose 200
   warning: '#F59E0B',
   info: '#3B82F6',
   
@@ -65,6 +68,7 @@ export const Radius = {
   xl: 32,
   full: 9999,
   round: 9999,
+  xxl: 40,
 };
 
 export const Typography = {
@@ -132,6 +136,11 @@ export const Typography = {
     color: Colors.textMuted,
     fontWeight: '700' as const,
   },
+  small: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    lineHeight: 14,
+  },
 };
 
 export const Shadow = {
@@ -162,7 +171,35 @@ export const Shadow = {
     shadowOpacity: 0.12,
     shadowRadius: 20,
     elevation: 8,
-  }
+  },
+  sm: {
+      shadowColor: '#64748B',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 1,
+  },
+  md: {
+      shadowColor: '#64748B',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
+  },
+  lg: {
+      shadowColor: '#64748B',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.1,
+      shadowRadius: 16,
+      elevation: 6,
+  },
+  light: {
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
 };
 
 export const SCREEN_PADDING = Spacing.lg;

@@ -91,7 +91,8 @@ axiosInstance.interceptors.response.use(
           { refreshToken: refreshToken },
         );
 
-        const { token: newToken, refreshToken: newRefreshToken } =
+        // API returns accessToken (not token)
+        const { accessToken: newToken, refreshToken: newRefreshToken } =
           response.data;
 
         if (newToken) {
