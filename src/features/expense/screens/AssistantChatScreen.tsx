@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useContext } from 'react';
+import { useRoute } from '@react-navigation/native';
 import { useAI } from '../../../common/hooks/useAI';
 import { AuthContext } from '../../../store/AuthContext';
 import {
@@ -8,6 +9,9 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
 } from 'react-native';
 import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
 
@@ -39,7 +43,13 @@ const AssistantChatScreen: React.FC = () => {
     error: aiError,
   } = useAI(authContext?.userToken || null);
 
+  const route = useRoute<any>();
+  const initialMessage = route.params?.initialMessage;
+  const hasSentRef = React.useRef(false);
+
   const canSend = input.trim().length > 0 && !aiLoading;
+
+
 
   const handleSend = async (text?: string) => {
     const content = (text ?? input).trim();
@@ -61,11 +71,13 @@ const AssistantChatScreen: React.FC = () => {
         },
         ...prev,
       ]);
-    } catch (err) {
+    } catch (err: any) {
+      console.error('AI Chat Error:', err);
+      const errorMessage = err?.message || 'Có lỗi xảy ra';
       setMessages(prev => [
         {
           id: `${Date.now()}-assistant`,
-          text: 'Xin lỗi, AI không trả lời được lúc này.',
+          text: `Lỗi kết nối: ${errorMessage}`,
           role: 'assistant',
         },
         ...prev,
@@ -73,66 +85,82 @@ const AssistantChatScreen: React.FC = () => {
     }
   };
 
+  // Use Effect to send initial message
+  React.useEffect(() => {
+    if (initialMessage && !hasSentRef.current) {
+        hasSentRef.current = true;
+        handleSend(initialMessage);
+    }
+  }, [initialMessage]);
+
   const suggestions = useMemo(() => SUGGESTIONS, []);
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={messages}
-        keyExtractor={item => item.id}
-        inverted
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.messageBubble,
-              item.role === 'user' ? styles.userBubble : styles.assistantBubble,
-            ]}
-          >
-            <Text
-              style={[
-                styles.messageText,
-                item.role === 'user' && styles.userText,
-              ]}
-            >
-              {item.text}
-            </Text>
-          </View>
-        )}
-      />
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      >
+        <View style={styles.container}>
+            <FlatList
+                data={messages}
+                keyExtractor={item => item.id}
+                inverted
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item }) => (
+                <View
+                    style={[
+                    styles.messageBubble,
+                    item.role === 'user' ? styles.userBubble : styles.assistantBubble,
+                    ]}
+                >
+                    <Text
+                    style={[
+                        styles.messageText,
+                        item.role === 'user' && styles.userText,
+                    ]}
+                    >
+                    {item.text}
+                    </Text>
+                </View>
+                )}
+            />
 
-      <View style={styles.suggestionRow}>
-        {suggestions.map(suggestion => (
-          <TouchableOpacity
-            key={suggestion}
-            style={styles.suggestionChip}
-            onPress={() => handleSend(suggestion)}
-          >
-            <Text style={styles.suggestionText}>{suggestion}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+            <View style={styles.suggestionRow}>
+                {suggestions.map(suggestion => (
+                <TouchableOpacity
+                    key={suggestion}
+                    style={styles.suggestionChip}
+                    onPress={() => handleSend(suggestion)}
+                >
+                    <Text style={styles.suggestionText}>{suggestion}</Text>
+                </TouchableOpacity>
+                ))}
+            </View>
 
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Nhập câu hỏi..."
-          placeholderTextColor={Colors.textMuted}
-          value={input}
-          onChangeText={setInput}
-        />
-        <TouchableOpacity
-          style={[styles.sendButton, !canSend && styles.sendDisabled]}
-          onPress={() => handleSend()}
-          disabled={!canSend}
-        >
-          <Text style={styles.sendText}>{aiLoading ? '...' : 'Gửi'}</Text>
-        </TouchableOpacity>
-        {aiError && (
-          <Text style={{ color: 'red', marginLeft: 8 }}>{aiError}</Text>
-        )}
-      </View>
-    </View>
+            <View style={styles.inputRow}>
+                <TextInput
+                style={styles.input}
+                placeholder="Nhập câu hỏi..."
+                placeholderTextColor={Colors.textMuted}
+                value={input}
+                onChangeText={setInput}
+                />
+                <TouchableOpacity
+                style={[styles.sendButton, !canSend && styles.sendDisabled]}
+                onPress={() => handleSend()}
+                disabled={!canSend}
+                >
+                <Text style={styles.sendText}>{aiLoading ? '...' : 'Gửi'}</Text>
+                </TouchableOpacity>
+                {aiError && (
+                <Text style={{ color: 'red', marginLeft: 8 }}>{aiError}</Text>
+                )}
+            </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
@@ -141,6 +169,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     padding: Spacing.lg,
+    paddingBottom: 100, // Account for absolute TabBar
   },
   listContent: {
     paddingBottom: Spacing.md,
