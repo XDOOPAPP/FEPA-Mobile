@@ -21,6 +21,7 @@ export interface AssistantChatRequest {
 
 export interface AssistantChatResult {
   reply: string;
+  conversationId?: string;
   sources?: Array<{ title: string; url: string }>;
 }
 
@@ -100,7 +101,12 @@ class AiRepository {
         payload,
       );
       if (response.data && response.data.data) {
-        return response.data.data as AssistantChatResult;
+        const rawData = response.data.data;
+        return {
+          reply: rawData.response || rawData.reply || '',
+          conversationId: rawData.conversationId,
+          sources: rawData.sources
+        };
       }
       throw new Error('Không nhận được phản hồi từ AI assistant');
     } catch (error: any) {
