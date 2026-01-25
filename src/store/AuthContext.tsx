@@ -2,6 +2,8 @@ import React, { createContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContextType, User } from '../types/auth';
 import { getMeApi, refreshTokenApi } from '../features/auth/authService';
+import axiosInstance from '../api/axiosInstance';
+import { API_ENDPOINTS } from '../constants/api';
 
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
@@ -32,6 +34,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     ]);
   }, []);
 
+  // Helper function to check premium status
+  const checkPremiumStatus = async () => {
+    try {
+      const { data } = await axiosInstance.get(API_ENDPOINTS.SUBSCRIPTION_CURRENT);
+      if (data && data.status === 'ACTIVE') {
+        setIsPremium(true);
+        setPremiumExpiry(data.endDate);
+      } else {
+        setIsPremium(false);
+        setPremiumExpiry(null);
+      }
+    } catch (error) {
+       // Silent error or fallback
+       console.log('Check premium status failed (possibly free user)');
+       setIsPremium(false);
+    }
+  };
+
   // Load user info từ API
   const loadUserInfo = useCallback(async () => {
     if (!userToken) return;
@@ -40,6 +60,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const userData = await getMeApi();
       setUser(userData);
       await AsyncStorage.setItem('userData', JSON.stringify(userData));
+      
+      // Check premium Status independently
+      await checkPremiumStatus();
     } catch (error: any) {
       // Nếu token không hợp lệ (401, 403) → clear data
       if (error.response?.status === 401 || error.response?.status === 403) {
@@ -145,16 +168,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
 
-          // Verify token và load user info từ API (non-blocking)
-          // Không block UI nếu server không available
-          loadUserInfo().catch(error => {
-            // Nếu token không hợp lệ hoặc server không available, chỉ log error
+          // Verify token và load user info từ API (blocking để đảm bảo state đúng nhất)
+          try {
+            await loadUserInfo();
+          } catch (error: any) {
             console.error('Token validation failed:', error);
-            // Chỉ clear data nếu là lỗi authentication, không phải network error
             if (error.response?.status === 401 || error.response?.status === 403) {
-              clearAuthData().catch(console.error);
+              await clearAuthData();
             }
-          });
+          }
         }
       } catch (error) {
         console.error('[AuthContext] Error loading storage data:', error);
@@ -181,8 +203,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (userData) {
         setUser(userData);
         await AsyncStorage.setItem('userData', JSON.stringify(userData));
+        // Check premium immediately if user data provided
+        checkPremiumStatus();
       } else {
-        // Nếu chưa có userData, load từ API
+        // Nếu chưa có userData, load từ API (which includes checkPremiumStatus)
         try {
           await loadUserInfo();
         } catch (error) {
@@ -191,6 +215,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     },
     [loadUserInfo],
+    // Removed checkPremiumStatus from dependency array as it is defined inside component scope
   );
 
   // Logout function
@@ -214,6 +239,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     checkTokenValidity,
     updateUser,
   };
+
+  // Socket Connection Management
+  useEffect(() => {
+    if (userToken) {
+      // Initialize socket with token
+      const { socketService } = require('../core/services/SocketService');
+      socketService.init(userToken);
+    } else {
+      // Disconnect socket on logout
+      const { socketService } = require('../core/services/SocketService');
+      socketService.disconnect();
+    }
+  }, [userToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

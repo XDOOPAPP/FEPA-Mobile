@@ -33,7 +33,7 @@ interface LoginFormData {
 }
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const { login, authState } = useAuth();
+  const { login, authState, loginWithGoogle } = useAuth();
   const authContext = useContext(AuthContext);
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
@@ -226,6 +226,21 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.dividerLine} />
           </View>
 
+          {/* Social Login */}
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={async () => {
+              try {
+                await loginWithGoogle();
+              } catch (e: any) {
+                Alert.alert('Lỗi', e.message);
+              }
+            }}
+            disabled={isLoading}
+          >
+             <Text style={styles.googleButtonText}>Sign in with Google</Text>
+          </TouchableOpacity>
+
           {/* Register Link */}
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Chưa có tài khoản? </Text>
@@ -389,6 +404,21 @@ const styles = StyleSheet.create({
   registerLink: {
     ...Typography.bodyBold,
     color: Colors.primary,
+  },
+  googleButton: {
+    backgroundColor: '#FFF',
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
+  },
+  googleButtonText: {
+    ...Typography.bodyBold,
+    color: Colors.textPrimary,
   },
 });
 

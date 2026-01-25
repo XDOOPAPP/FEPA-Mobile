@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../features/dashboard/screens/DashboardScreen';
 import ExpenseNavigator from '../features/expense/navigation/ExpenseNavigator';
-import OCRScanScreen from '../features/ocr/screens/OCRScanScreen'; // Smart Scan
+import OCRNavigator from '../features/ocr/navigation/OCRNavigator'; // Smart Scan Navigator
 import PlanningNavigator from '../features/planning/navigation/PlanningNavigator';
 import EducationNavigator from '../features/education/navigation/EducationNavigator';
 import { Colors, Radius, Shadow, Spacing } from '../constants/theme';
@@ -13,6 +13,12 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 const Tab = createBottomTabNavigator();
 
 const ModernTabBar = ({ state, descriptors, navigation }: any) => {
+  const focusedOptions = descriptors[state.routes[state.index].key].options;
+
+  if (focusedOptions.tabBarStyle?.display === 'none') {
+    return null;
+  }
+
   return (
     <View style={styles.tabBarContainer}>
       <View style={styles.glassBackground}>
@@ -126,10 +132,19 @@ const MainTabNavigator = () => {
       {/* Tab 3: Smart Scan (Center) */}
       <Tab.Screen 
         name="SmartScan" 
-        component={OCRScanScreen} // Using OCR Screen directly
+        component={OCRNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Prevent default action
+            e.preventDefault();
+            // Navigate manually
+            navigation.navigate('SmartScan');
+          },
+        })}
         options={{ 
             title: 'Scan',
-            tabBarStyle: { display: 'none' } // Optional: Hide tab bar when scanning
+            headerShown: false,
+            tabBarStyle: { display: 'none' },
         }} 
       />
        
