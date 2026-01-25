@@ -10,6 +10,15 @@ export interface Budget {
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  progress?: {
+    totalSpent: number;
+    remaining: number;
+    percentage: number;
+    status: 'SAFE' | 'WARNING' | 'EXCEEDED';
+    daysRemaining?: number;
+    dailyAvgSpent?: number;
+    projectedOverspend?: number;
+  };
 }
 
 export interface BudgetProgress {
