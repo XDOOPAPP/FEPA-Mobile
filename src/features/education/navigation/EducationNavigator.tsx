@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import EducationProfileScreen from '../screens/EducationProfileScreen';
+// import EducationProfileScreen from '../screens/EducationProfileScreen';
+import ProfileScreen from '../../profile/screens/ProfileScreen';
 import BlogScreen from '../screens/BlogScreen';
 import PremiumScreen from '../screens/PremiumScreen';
 import SecuritySettingsScreen from '../screens/SecuritySettingsScreen';
@@ -31,8 +32,8 @@ const EducationNavigator = () => {
     >
       <Stack.Screen
         name="EducationHome"
-        component={EducationProfileScreen}
-        options={{ title: 'Cá nhân' }}
+        component={ProfileScreen}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Profile"
@@ -47,7 +48,7 @@ const EducationNavigator = () => {
       <Stack.Screen
         name="Premium"
         component={PremiumScreen}
-        options={{ title: 'Premium' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="SecuritySettings"
