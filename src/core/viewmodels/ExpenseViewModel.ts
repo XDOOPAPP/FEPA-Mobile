@@ -7,6 +7,7 @@ import {
   ExpenseFilterOptions, 
   PaginatedExpenses 
 } from '../repositories/ExpenseRepository';
+import { offlineExpenseRepository } from '../repositories/OfflineExpenseRepository';
 
 export interface ExpenseViewModelState extends ViewModelState {
   expenses: Expense[];
@@ -49,7 +50,7 @@ export const useExpenseViewModel = (token: string | null) => {
     setLoading(true);
     clearMessages();
     try {
-      const expenses = await expenseRepository.getExpenses();
+      const expenses = await offlineExpenseRepository.getExpenses();
       syncState({ expenses });
       return expenses;
     } catch (error: any) {
@@ -152,7 +153,7 @@ export const useExpenseViewModel = (token: string | null) => {
       setLoading(true);
       clearMessages();
       try {
-        const created = await expenseRepository.createExpense(payload);
+        const created = await offlineExpenseRepository.createExpense(payload);
         syncState({ 
           expenses: [created, ...expenseState.expenses],
           pagination: {
@@ -180,7 +181,7 @@ export const useExpenseViewModel = (token: string | null) => {
       setLoading(true);
       clearMessages();
       try {
-        const updated = await expenseRepository.updateExpense(id, payload);
+        const updated = await offlineExpenseRepository.updateExpense(id, payload);
         syncState({
           expenses: expenseState.expenses.map(item =>
             item.id === id ? updated : item,
@@ -207,7 +208,7 @@ export const useExpenseViewModel = (token: string | null) => {
       setLoading(true);
       clearMessages();
       try {
-        await expenseRepository.deleteExpense(id);
+        await offlineExpenseRepository.deleteExpense(id);
         syncState({
           expenses: expenseState.expenses.filter(item => item.id !== id),
           currentExpense: expenseState.currentExpense?.id === id ? null : expenseState.currentExpense,
@@ -267,6 +268,19 @@ export const useExpenseViewModel = (token: string | null) => {
     syncState({ currentExpense: null });
   }, [syncState]);
 
+  /**
+   * Sync local data with server
+   */
+  const syncData = useCallback(async () => {
+    try {
+      await offlineExpenseRepository.syncExpenses();
+      // After sync, refresh list
+      await getExpenses(); 
+    } catch (error) {
+      console.error('Sync failed', error);
+    }
+  }, [getExpenses]);
+
   return {
     expenseState,
     getExpenses,
@@ -280,5 +294,6 @@ export const useExpenseViewModel = (token: string | null) => {
     setFilters,
     clearCurrentExpense,
     clearMessages,
+    syncData,
   };
 };
