@@ -14,11 +14,19 @@ class OcrRepository {
 
   async scanInvoice(fileUrl: string): Promise<OcrJob> {
     try {
+      // fileUrl should already be base64 data URL or http URL
+      // Local file:// URIs should be converted to base64 before calling this method
+      console.log('[OCR] Sending scan request, URL type:', 
+        fileUrl.startsWith('data:') ? 'base64' : 
+        fileUrl.startsWith('http') ? 'http' : 'other'
+      );
+
       const response = await this.apiClient.post(API_ENDPOINTS.OCR_SCAN, {
         fileUrl,
       });
       return this.unwrapResponse<OcrJob>(response.data);
     } catch (error: any) {
+      console.error('[OCR] scanInvoice error:', error);
       throw this.handleError(error);
     }
   }

@@ -1,5 +1,7 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
-import { View, StyleSheet, Text, ScrollView, Image, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useCallback, useContext, useMemo, useState, useEffect } from 'react';
+import { View, StyleSheet, Text, ScrollView, Image, TouchableOpacity, StatusBar, DeviceEventEmitter } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { getUnreadCountApi } from '../../notification/services/NotificationService';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { AuthContext } from '../../../store/AuthContext';
@@ -31,7 +33,7 @@ const getLastNDaysRange = (days: number) => {
 const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const authContext = useContext(AuthContext);
-  const { getExpenseSummary, expenseState } = useExpense(
+  const { getExpenseSummary, getExpenses, expenseState } = useExpense(
     authContext?.userToken || null,
   );
   const { getAllBudgetsWithProgress, getAlerts } = useBudget(
@@ -58,6 +60,21 @@ const DashboardScreen: React.FC = () => {
   } | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [periods, setPeriods] = useState<ExpenseSummaryPeriod[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+        const res = await getUnreadCountApi();
+        setUnreadCount(res.count || 0);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+      const sub = DeviceEventEmitter.addListener('notification_received', () => {
+           setUnreadCount(prev => prev + 1);
+      });
+      return () => sub.remove();
+  }, []);
 
   const handlePredict = async () => {
     setPredicting(true);
@@ -96,7 +113,9 @@ const DashboardScreen: React.FC = () => {
     useCallback(() => {
       loadSummary();
       loadBudgets();
-    }, [loadSummary, loadBudgets]),
+      loadUnreadCount();
+      getExpenses(); 
+    }, [loadSummary, loadBudgets, loadUnreadCount, getExpenses]),
   );
 
   const budgetAlerts = getAlerts();
@@ -126,6 +145,9 @@ const DashboardScreen: React.FC = () => {
 
   const greetingName = authContext?.user?.fullName?.split(' ')[0] || 'Member';
 
+  // Helper check
+  const hasPredictions = aiResult && 'predictions' in aiResult && Array.isArray(aiResult.predictions) && aiResult.predictions.length > 0;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
@@ -140,20 +162,34 @@ const DashboardScreen: React.FC = () => {
             <Text style={styles.greetingSub}>Chào buổi tối,</Text>
             <Text style={styles.greetingTitle}>{greetingName}</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.avatarContainer}
-            onPress={() => navigation.navigate('Profile')}
-          >
-             <LinearGradient
-                colors={Colors.primaryGradient}
-                style={styles.avatarGradient}
-             >
-                <Text style={styles.avatarText}>{greetingName[0]}</Text>
-             </LinearGradient>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity 
+              style={styles.bellButton}
+              onPress={() => navigation.navigate('Notifications')}
+            >
+               <Ionicons name="notifications-outline" size={26} color={Colors.textPrimary} />
+               {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                     <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                  </View>
+               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={() => navigation.navigate('Profile')}
+            >
+               <LinearGradient
+                  colors={Colors.primaryGradient}
+                  style={styles.avatarGradient}
+               >
+                  <Text style={styles.avatarText}>{greetingName[0]}</Text>
+               </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Hero Card - Total Balance (Simulated as Total Expenses for now) */}
+        {/* Hero Card */}
         <GlassCard variant="featured" style={styles.heroCard}>
           <Text style={styles.heroLabel}>Tổng chi tiêu (7 ngày)</Text>
           <Text style={styles.heroAmount}>
@@ -221,9 +257,9 @@ const DashboardScreen: React.FC = () => {
            <GlassCard>
               <Text style={styles.aiMonth}>Tháng {predictMonth}</Text>
               
-              {aiResult ? (
+              {hasPredictions ? (
                  <View style={styles.aiResult}>
-                    {aiResult.predictions?.map((p, i) => (
+                    {(aiResult as any).predictions.map((p: any, i: number) => (
                        <View key={i} style={styles.aiRow}>
                           <Text style={styles.aiCat}>{p.category}</Text>
                           <Text style={styles.aiVal}>{formatCurrency(p.amount)}</Text>
@@ -234,9 +270,12 @@ const DashboardScreen: React.FC = () => {
                     ))}
                  </View>
               ) : (
-                <Text style={styles.placeholderText}>
-                   Nhấn "Chạy dự báo" để xem AI phân tích xu hướng chi tiêu tháng này của bạn.
-                </Text>
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                    <Ionicons name="analytics-outline" size={48} color={Colors.primaryLight} style={{ marginBottom: 12 }} />
+                    <Text style={styles.placeholderText}>
+                       Nhấn "Chạy dự báo" để xem AI phân tích xu hướng chi tiêu tháng này của bạn.
+                    </Text>
+                </View>
               )}
               {aiError ? <Text style={styles.errorText}>{aiError}</Text> : null}
            </GlassCard>
@@ -269,8 +308,6 @@ const styles = StyleSheet.create({
     opacity: 0.15,
     borderRadius: 150,
     transform: [{ scaleX: 1.5 }],
-    blurRadius: 50, // Note: blurRadius specific to Image, simple View specific support varies
-    // Alternative approach for glow in RN requires ImageBackground or SVG
   },
   content: {
     padding: Spacing.lg,
@@ -289,6 +326,29 @@ const styles = StyleSheet.create({
   greetingTitle: {
     ...Typography.h1,
     fontSize: 28,
+  },
+  bellButton: {
+    marginRight: 16,
+    padding: 4,
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: Colors.danger,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: Colors.background,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
   avatarContainer: {
     ...Shadow.glow,
@@ -401,10 +461,9 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     ...Typography.body,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
+    color: Colors.textSecondary, 
     textAlign: 'center',
-    marginVertical: 10,
+    marginHorizontal: 20
   },
   errorText: {
     ...Typography.caption,

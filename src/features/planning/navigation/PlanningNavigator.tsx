@@ -28,7 +28,7 @@ const PlanningNavigator = () => {
       <Stack.Screen
         name="PlanningHome"
         component={PlanningScreen}
-        options={{ title: 'Kế hoạch' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Budgets"

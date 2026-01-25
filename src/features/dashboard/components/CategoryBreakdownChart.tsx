@@ -128,15 +128,34 @@ export const processExpensesByCategory = (
 
   const total = Object.values(categoryTotals).reduce((sum, val) => sum + val, 0);
   
-  return Object.entries(categoryTotals)
-    .map(([category, amount]) => ({
-      category,
-      label: CATEGORY_LABELS[category] || category,
-      total: amount,
-      percentage: total > 0 ? (amount / total) * 100 : 0,
-      color: CATEGORY_COLORS[category] || CATEGORY_COLORS.other,
-    }))
-    .sort((a, b) => b.total - a.total);
+  if (total === 0) return [];
+
+  // 1. Calculate raw percentages
+  let data = Object.entries(categoryTotals).map(([category, amount]) => ({
+    category,
+    label: CATEGORY_LABELS[category] || category,
+    total: amount,
+    raw: (amount / total) * 100,
+    percentage: Math.floor((amount / total) * 100),
+    color: CATEGORY_COLORS[category] || CATEGORY_COLORS.other,
+  }));
+
+  // 2. Calculate remainder
+  const sumRounded = data.reduce((sum, item) => sum + item.percentage, 0);
+  let remainder = 100 - sumRounded;
+
+  // 3. Distribute remainder to items with largest decimal parts
+  // Sort by decimal part descending
+  data.sort((a, b) => (b.raw - Math.floor(b.raw)) - (a.raw - Math.floor(a.raw)));
+
+  for (let i = 0; i < remainder; i++) {
+    if (i < data.length) {
+      data[i].percentage += 1;
+    }
+  }
+
+  // 4. Return to sort by Total Amount descending
+  return data.map(({ raw, ...rest }) => rest).sort((a, b) => b.total - a.total);
 };
 
 const styles = StyleSheet.create({

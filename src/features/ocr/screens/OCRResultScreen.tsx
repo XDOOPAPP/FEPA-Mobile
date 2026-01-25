@@ -9,12 +9,13 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../../store/AuthContext';
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { useOCR } from '../../../store/OCRContext';
 import { OcrJob } from '../../../core/models/Ocr';
 import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
+import { saveReceipt } from '../../../utils/receiptStorage';
 
 const CATEGORIES = [
   { label: 'Ăn uống', slug: 'food' },
@@ -24,21 +25,17 @@ const CATEGORIES = [
   { label: 'Khác', slug: 'other' },
 ];
 
-interface RouteParams {
-  job: OcrJob;
-}
-
 const OCRResultScreen: React.FC = () => {
-  const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const authContext = useContext(AuthContext);
   const { createExpense, expenseState } = useExpense(
     authContext?.userToken || null,
   );
-  const { addScan } = useOCR();
+  const { addScan, currentOcrResult } = useOCR();
 
-  const { job } = route.params as RouteParams;
-  const expenseData = job.resultJson?.expenseData;
+  // Get job from context
+  const job = currentOcrResult;
+  const expenseData = job?.resultJson?.expenseData;
 
   const defaultCategory = useMemo(() => {
     const category = expenseData?.category || 'other';
@@ -59,7 +56,7 @@ const OCRResultScreen: React.FC = () => {
   );
 
   const merchantName =
-    job.resultJson?.qrData &&
+    job?.resultJson?.qrData &&
     typeof job.resultJson.qrData === 'object' &&
     'sellerName' in job.resultJson.qrData
       ? String((job.resultJson.qrData as any).sellerName)
@@ -72,15 +69,40 @@ const OCRResultScreen: React.FC = () => {
       return;
     }
 
+    if (!job) {
+       Alert.alert('Lỗi', 'Dữ liệu không hợp lệ');
+       return;
+    }
+
     try {
       const spentAt = new Date(date).toISOString();
-      await createExpense({
+      
+      // 1. Create Expense (History)
+      const newExpense = await createExpense({
         amount: parsedAmount,
         category,
         description: description.trim(),
         spentAt,
+        receiptUrl: job.fileUrl || undefined, // Link for future reference
       });
 
+      // 2. Save Receipt to Gallery (Local Storage)
+      if (job.fileUrl) {
+         try {
+           await saveReceipt({
+              id: Date.now().toString(),
+              expenseId: newExpense.id,
+              uri: job.fileUrl,
+              amount: parsedAmount,
+              category: category,
+              createdAt: spentAt
+           });
+         } catch(e) {
+           console.warn('Failed to save receipt gallery image', e);
+         }
+      }
+
+      // 3. Add to Scan History (OCR Logs)
       await addScan({
         id: job.id,
         timestamp: Date.now(),
@@ -96,13 +118,21 @@ const OCRResultScreen: React.FC = () => {
         syncedAt: Date.now(),
       });
 
-      Alert.alert('Thành công', 'Đã lưu chi tiêu từ OCR', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert('Thành công', 'Đã lưu chi tiêu và hóa đơn', [
+        { text: 'OK', onPress: () => navigation.navigate('Transactions') },
       ]);
     } catch (error: any) {
       Alert.alert('Lỗi', error.message || 'Không thể lưu chi tiêu');
     }
   };
+
+  if (!job) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ textAlign: 'center', marginTop: 20 }}>Không có dữ liệu OCR</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -122,6 +152,7 @@ const OCRResultScreen: React.FC = () => {
         value={amount}
         onChangeText={setAmount}
         keyboardType="numeric"
+        placeholder="Nhập số tiền"
       />
 
       <Text style={styles.label}>Danh mục</Text>
@@ -152,10 +183,16 @@ const OCRResultScreen: React.FC = () => {
         style={styles.input}
         value={description}
         onChangeText={setDescription}
+        placeholder="Nhập mô tả"
       />
 
       <Text style={styles.label}>Ngày</Text>
-      <TextInput style={styles.input} value={date} onChangeText={setDate} />
+      <TextInput 
+        style={styles.input} 
+        value={date} 
+        onChangeText={setDate}
+        placeholder="YYYY-MM-DD"
+      />
 
       <TouchableOpacity
         style={[styles.saveButton, expenseState.isLoading && styles.disabled]}
@@ -213,16 +250,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
   },
   input: {
     backgroundColor: Colors.card,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md, // Tăng padding
     borderWidth: 1,
     borderColor: Colors.border,
     marginBottom: Spacing.md,
     ...Shadow.soft,
+    color: Colors.textPrimary,
   },
   categoryWrap: {
     flexDirection: 'row',
@@ -251,15 +290,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   saveButton: {
-    marginTop: Spacing.sm,
+    marginTop: Spacing.lg,
     backgroundColor: Colors.accent,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: Radius.lg,
     alignItems: 'center',
+    ...Shadow.glow,
   },
   saveText: {
     color: '#FFF',
     fontWeight: '700',
+    fontSize: 16,
   },
   disabled: {
     opacity: 0.7,

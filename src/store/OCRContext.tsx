@@ -30,6 +30,7 @@ export interface OCRContextType {
   isSyncing: boolean;
   lastSyncTime: number | null;
   statistics: any | null;
+  currentOcrResult: any | null; // NEW: Current OCR result for navigation
 
   // Actions
   loadHistory: () => Promise<void>;
@@ -41,6 +42,7 @@ export interface OCRContextType {
   refreshStatistics: () => Promise<void>;
   syncPendingScans: () => Promise<void>;
   clearHistory: () => Promise<void>;
+  setCurrentOcrResult: (result: any | null) => void; // NEW
 }
 
 export const OCRContext = createContext<OCRContextType | undefined>(undefined);
@@ -56,6 +58,7 @@ export const OCRProvider: React.FC<OCRProviderProps> = ({ children }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [statistics, setStatistics] = useState<any | null>(null);
+  const [currentOcrResult, setCurrentOcrResult] = useState<any | null>(null); // NEW
 
   /**
    * Load OCR history from AsyncStorage
@@ -244,6 +247,7 @@ export const OCRProvider: React.FC<OCRProviderProps> = ({ children }) => {
     isSyncing,
     lastSyncTime,
     statistics,
+    currentOcrResult,
     loadHistory,
     addScan,
     updateScan,
@@ -253,6 +257,7 @@ export const OCRProvider: React.FC<OCRProviderProps> = ({ children }) => {
     refreshStatistics,
     syncPendingScans,
     clearHistory,
+    setCurrentOcrResult,
   };
 
   return <OCRContext.Provider value={value}>{children}</OCRContext.Provider>;

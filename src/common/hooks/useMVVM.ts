@@ -3,6 +3,7 @@ import { useExpenseViewModel } from '../../core/viewmodels/ExpenseViewModel';
 import { useBudgetViewModel } from '../../core/viewmodels/BudgetViewModel';
 import { useOcrViewModel } from '../../core/viewmodels/OcrViewModel';
 import { useSubscriptionViewModel } from '../../core/viewmodels/SubscriptionViewModel';
+import { useBlogViewModel } from '../../core/viewmodels/BlogViewModel';
 
 // Re-export types for convenience
 export type { ExpenseFilterOptions, PaginatedExpenses } from '../../core/repositories/ExpenseRepository';
@@ -59,6 +60,13 @@ export const useBudget = (token: string | null) => {
  */
 export const useSubscription = () => {
   return useSubscriptionViewModel();
+};
+
+/**
+ * Custom hook để sử dụng Blog ViewModel
+ */
+export const useBlog = () => {
+  return useBlogViewModel();
 };
 
 /**

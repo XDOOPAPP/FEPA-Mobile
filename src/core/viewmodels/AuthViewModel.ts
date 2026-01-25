@@ -1,4 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import auth from '@react-native-firebase/auth';
 import { useBaseViewModel, ViewModelState } from './BaseViewModel';
 import { LoginRequest, LoginResponse, User } from '../models/User';
 import { userRepository } from '../repositories/UserRepository';
@@ -60,6 +62,59 @@ export const useAuthViewModel = () => {
     },
     [setLoading, setError, setSuccess, clearMessages],
   );
+
+  // Configure Google Signin
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: 'YOUR_WEB_CLIENT_ID', // TODO: Get this from google-services.json or .env
+    });
+  }, []);
+
+  // Login with Google
+  const loginWithGoogle = useCallback(async () => {
+    setLoading(true);
+    clearMessages();
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const googleResponse = await GoogleSignin.signIn();
+      const result: any = googleResponse;
+      const idToken = result.data?.idToken || result.idToken;
+      const user = result.data?.user || result.user;
+
+      if (!idToken) throw new Error('No ID token found');
+      
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      const firebaseUserCredential = await auth().signInWithCredential(googleCredential);
+      const firebaseUser = firebaseUserCredential.user;
+
+      const apiResponse = await userRepository.socialLogin({
+        idToken: idToken,
+        provider: 'google',
+      });
+
+      const authToken = apiResponse.token ?? apiResponse.accessToken ?? '';
+
+      setAuthState(prev => ({
+        ...prev,
+        user: apiResponse.user ?? null,
+        isAuthenticated: true,
+        token: authToken || null,
+      }));
+
+      setSuccess('Login successful');
+      return {
+        ...apiResponse,
+        token: authToken || apiResponse.token,
+        accessToken: apiResponse.accessToken ?? (authToken || apiResponse.token),
+      };
+
+    } catch (error: any) {
+      setError(error.message || 'Google Sign-In failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading, setError, setSuccess, clearMessages]);
 
   // Register
   const register = useCallback(
@@ -332,6 +387,10 @@ export const useAuthViewModel = () => {
     setLoading(true);
     try {
       await userRepository.logout();
+    } catch (error: any) {
+      // Ignore API error logic for logout (e.g. 404) to allow local logout
+      console.warn('Logout API failed, forcing local logout:', error.message);
+    } finally {
       setAuthState({
         isLoading: false,
         error: null,
@@ -340,13 +399,9 @@ export const useAuthViewModel = () => {
         isAuthenticated: false,
         token: null,
       });
-    } catch (error: any) {
-      setError(error.message || 'Logout failed');
-      throw error;
-    } finally {
       setLoading(false);
     }
-  }, [setLoading, setError]);
+  }, [setLoading]);
 
   // Clear Auth
   const clearAuth = useCallback(() => {
@@ -378,5 +433,6 @@ export const useAuthViewModel = () => {
     logout,
     clearAuth,
     clearMessages,
+    loginWithGoogle,
   };
 };

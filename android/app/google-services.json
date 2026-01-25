@@ -1,0 +1,37 @@
+{
+  "WARNING": "THIS IS A DUMMY FILE. YOU MUST REPLACE THIS CONTENT WITH THE REAL google-services.json FROM FIREBASE CONSOLE",
+  "project_info": {
+    "project_number": "SET_ME",
+    "project_id": "fipa-80ae4",
+    "storage_bucket": "fipa-80ae4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "SET_ME",
+        "android_client_info": {
+          "package_name": "com.fepamobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCu3oX9vIiVhTu_7fq3NP46WRxkCuTQEiQ"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

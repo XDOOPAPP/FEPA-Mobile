@@ -1,11 +1,13 @@
 // API Configuration
 // 10.0.2.2 là IP của host máy từ Android emulator
 // ⚠️ NOTE: Api-gateway sử dụng /api/v1/ prefix, không phải /api/
-export const API_BASE_URL = 'http://10.0.2.2:3000/api/v1';
+// export const API_BASE_URL = 'http://10.0.2.2:3000/api/v1'; // Emulator
+export const API_BASE_URL = 'http://192.168.1.98:3000/api/v1'; // Physical Device (LAN IP)
 
 export const API_ENDPOINTS = {
   // Auth
   LOGIN: '/auth/login',
+  SOCIAL_LOGIN: '/auth/social-login',
   REGISTER: '/auth/register',
   VERIFY_OTP: '/auth/verify-otp',
   RESEND_OTP: '/auth/resend-otp',
@@ -28,6 +30,7 @@ export const API_ENDPOINTS = {
   UPDATE_EXPENSE: (id: string) => `/expenses/${id}`,
   DELETE_EXPENSE: (id: string) => `/expenses/${id}`,
   GET_EXPENSE_STATS: '/expenses/summary',
+  GET_EXPENSE_EXPORT: '/expenses/export',
 
   // OCR
   OCR_SCAN: '/ocr/scan',
@@ -60,6 +63,17 @@ export const API_ENDPOINTS = {
   AI_BUDGET_ALERTS: '/ai/budget-alerts',
   AI_ASSISTANT_CHAT: '/ai/assistant/chat',
   AI_INSIGHTS: '/ai/insights',
+
+  // Blogs
+  GET_BLOGS: '/blogs',
+  GET_BLOG_SLUG: (slug: string) => `/blogs/slug/${slug}`,
+  GET_BLOG_ID: (id: string) => `/blogs/${id}`,
+
+  // Notifications
+  NOTIFICATIONS: '/notifications',
+  NOTIFICATION_READ: (id: string) => `/notifications/${id}/read`,
+  NOTIFICATION_READ_ALL: '/notifications/read-all',
+  NOTIFICATION_UNREAD_COUNT: '/notifications/unread-count',
 };
 
 // Request timeout (ms)
