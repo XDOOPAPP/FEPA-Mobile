@@ -13,356 +13,544 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  TextInput,
-  NativeModules,
-  Image,
-  ScrollView,
+  Dimensions,
+  StatusBar,
+  ImageBackground,
+  Linking,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { 
+  Camera, 
+  useCameraDevice, 
+  useCameraPermission,
+  useCameraFormat,
+} from 'react-native-vision-camera';
+import { launchImageLibrary } from 'react-native-image-picker';
+import RNFS from 'react-native-fs';
 import { AuthContext } from '../../../store/AuthContext';
 import { useOcr } from '../../../common/hooks/useMVVM';
-import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
+import { useOCR } from '../../../store/OCRContext';
+import { Colors } from '../../../constants/theme';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+
+
+const { width } = Dimensions.get('window');
+const SCAN_SIZE = width * 0.75;
 
 const OCRScanScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const authContext = useContext(AuthContext);
-  const { scanInvoice, getJob, ocrState } = useOcr(
-    authContext?.userToken || null,
-  );
+  const { scanInvoice, getJob } = useOcr(authContext?.userToken || null);
+  const { setCurrentOcrResult } = useOCR();
 
+  // Camera State
+  const device = useCameraDevice('back');
+  
+  // Select High Quality format (720p - 1080p) for best OCR results
+  // Server is now configured to accept 50MB payload, so we don't need to worry about size.
+  const format = React.useMemo(() => {
+     if (!device?.formats) return undefined;
+     
+     // Filter for 720p or 1080p formats (Width between 1080 and 1920)
+     const candidates = device.formats.filter(f => 
+       f.photoWidth >= 1080 && f.photoWidth <= 1920
+     );
+     
+     if (candidates.length > 0) {
+       // Pick the best quality among candidates (highest resolution)
+       return candidates.sort((a, b) => (b.photoWidth * b.photoHeight) - (a.photoWidth * a.photoHeight))[0];
+     }
+     
+     // Fallback: Pick the highest resolution available overall
+     return [...device.formats].sort((a, b) => (b.photoWidth * b.photoHeight) - (a.photoWidth * a.photoHeight))[0];
+  }, [device?.formats]);
+
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const camera = useRef<Camera>(null);
+  const [flash, setFlash] = useState<'off' | 'on'>('off');
+  const [isActive, setIsActive] = useState(true);
+
+  // App State
   const [fileUrl, setFileUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const scanAnim = useRef(new Animated.Value(0)).current;
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isScanning) {
-      scanAnim.stopAnimation();
-      scanAnim.setValue(0);
-      return;
-    }
+  // Animation
+  const scanLineAnim = useRef(new Animated.Value(0)).current;
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanAnim, {
-          toValue: 1,
-          duration: 1600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scanAnim, {
-          toValue: 0,
-          duration: 1600,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-  }, [isScanning, scanAnim]);
-
-  const pickImage = useCallback(async (source: 'camera' | 'gallery') => {
-    try {
-      const options: any = {
-        mediaType: 'photo',
-        includeBase64: true,
-        quality: 0.8,
-      };
-
-      const result =
-        source === 'camera'
-          ? await launchCamera(options)
-          : await launchImageLibrary(options);
-
-      if (result.didCancel) return;
-
-      if (result.errorCode) {
-        if (result.errorCode === 'camera_unavailable') {
-          Alert.alert('Lỗi', 'Máy ảnh không khả dụng trên thiết bị này.');
-        } else if (result.errorCode === 'permission') {
-          Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền máy ảnh/thư viện trong cài đặt.');
-        } else {
-          Alert.alert('Lỗi', result.errorMessage || 'Không thể lấy ảnh');
-        }
-        return;
-      }
-
-      const asset = result.assets && result.assets[0];
-      if (asset?.uri) {
-        if (asset.base64) {
-          const mime = asset.type || 'image/jpeg';
-          setFileUrl(`data:${mime};base64,${asset.base64}`);
-        } else {
-          setFileUrl(asset.uri);
-        }
-      }
-    } catch (error) {
-      Alert.alert('Lỗi', 'Đã xảy ra lỗi khi chọn ảnh.');
-    }
-  }, []);
-
-  const clearImage = () => {
-    setFileUrl('');
+  // Helper inside component
+  const convertFileToBase64 = async (uri: string): Promise<string> => {
+     if (uri.startsWith('data:')) return uri;
+     
+     try {
+       // Use RNFS to read file as base64 directly
+       const filePath = uri.replace('file://', ''); // RNFS usually needs path without schema on Android
+       const base64 = await RNFS.readFile(filePath, 'base64');
+       return `data:image/jpeg;base64,${base64}`;
+     } catch (e) {
+       console.error("Conversion error", e);
+       // Fallback: try reading with file:// prefix if first attempt failed
+       try {
+          const base64 = await RNFS.readFile(uri, 'base64');
+          return `data:image/jpeg;base64,${base64}`;
+       } catch (e2) {
+          throw new Error('Cannot convert image: ' + (e as any).message);
+       }
+     }
   };
 
-  const handleScan = useCallback(async () => {
-    if (!fileUrl.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng chụp/chọn ảnh hoặc nhập URL/Base64');
-      return;
+  // Hide TabBar when focused
+  useEffect(() => {
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({ tabBarStyle: { display: 'none' } });
+      return () => {
+        parent.setOptions({
+          tabBarStyle: {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: 'transparent',
+            elevation: 0,
+            borderTopWidth: 0,
+          }
+        });
+      };
     }
+  }, [navigation]);
 
+  // Request Permission
+  useEffect(() => {
+    if (!hasPermission) {
+      requestPermission();
+    }
+  }, [hasPermission]);
+
+  // Animation Loop
+  useEffect(() => {
+    startScanAnimation();
+  }, [isScanning]);
+
+  // Active state management
+  useEffect(() => {
+    setIsActive(isFocused && !capturedImage);
+  }, [isFocused, capturedImage]);
+
+  const startScanAnimation = () => {
+    if (isScanning || !capturedImage) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: SCAN_SIZE,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  };
+
+
+  const takePhoto = async () => {
+    if (camera.current) {
+      try {
+        const photo = await camera.current.takePhoto({
+          flash: flash,
+          enableShutterSound: true,
+        });
+        
+        console.log(`[OCR] Captured photo: ${photo.width}x${photo.height}, path: ${photo.path}`);
+        
+        const path = `file://${photo.path}`;
+        setCapturedImage(path);
+        
+        // Auto scan immediately
+        handleScan(path);
+      } catch (e) {
+// ...
+        console.error('Failed to take photo:', e);
+        Alert.alert('Lỗi', 'Không thể chụp ảnh.');
+      }
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        includeBase64: true,
+        quality: 0.7,
+      });
+
+      if (result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        let uri = asset.uri || '';
+        
+        if (asset.base64) {
+             uri = `data:${asset.type};base64,${asset.base64}`;
+        }
+        
+        setCapturedImage(uri);
+        handleScan(uri);
+      }
+    } catch (error) {
+       Alert.alert('Lỗi', 'Không chọn được ảnh');
+    }
+  };
+
+  const handleScan = async (uri: string) => {
     try {
       setIsScanning(true);
-      const job = await scanInvoice(fileUrl.trim());
+      
+      // Convert to base64 for upload
+      let base64Url = uri;
+      if (!uri.startsWith('data:')) {
+         base64Url = await convertFileToBase64(uri);
+      }
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Kết nối quá thời gian.')), 60000)
+      );
+      
+      const job = await Promise.race([
+        scanInvoice(base64Url),
+        timeoutPromise
+      ]) as any;
+
+      if (!job || !job.id) throw new Error('Không thể tạo công việc OCR');
 
       let attempts = 0;
       let currentJob = job;
+      
+      // Polling loop
       while (attempts < 20) {
         if (currentJob.status === 'completed') {
           setIsScanning(false);
-          navigation.navigate('OCRResult', { job: currentJob });
+          const expenseData = currentJob.resultJson?.expenseData || {};
+          
+          const jobData = {
+            id: String(currentJob.id || ''),
+            status: 'completed',
+            fileUrl: uri, // Critical: Pass original image path to Result screen for saving
+            resultJson: {
+              expenseData: {
+                amount: Number(expenseData.amount) || 0,
+                category: String(expenseData.category || 'other'),
+                description: String(expenseData.description || 'Chi tiêu OCR').substring(0, 100),
+                spentAt: expenseData.spentAt || new Date().toISOString(),
+                confidence: Number(expenseData.confidence) || 0,
+                source: expenseData.source === 'qr' ? 'qr' : 'ocr',
+              },
+            },
+          };
+          
+          setCurrentOcrResult(jobData);
+          navigation.navigate('OCRResult');
+          // Reset state after navigation
+          setTimeout(() => {
+             setCapturedImage(null);
+          }, 1000);
           return;
         }
 
-        if (currentJob.status === 'failed') {
-          throw new Error('OCR thất bại, vui lòng thử lại');
-        }
+        if (currentJob.status === 'failed') throw new Error('OCR thất bại');
 
-        await new Promise<void>(resolve => {
-          setTimeout(() => resolve(), 2000);
-        });
-        currentJob = await getJob(job.id);
-        attempts += 1;
+        await new Promise<void>(r => setTimeout(r, 2000));
+        try {
+          currentJob = await getJob(job.id);
+        } catch (e) { }
+        attempts++;
       }
-
-      throw new Error('OCR đang xử lý lâu hơn dự kiến');
+      throw new Error('OCR timeout');
     } catch (error: any) {
       setIsScanning(false);
-      Alert.alert('Lỗi', error.message || 'Không thể quét hóa đơn');
+      Alert.alert('Lỗi', error.message || 'Thử lại sau');
+      // Allow retry
     }
-  }, [fileUrl, scanInvoice, getJob, navigation]);
+  };
 
-  const translateY = scanAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 180],
-  });
+  const retake = () => {
+    setCapturedImage(null);
+    setIsScanning(false);
+  };
+
+  if (!hasPermission) {
+      return (
+         <View style={styles.permissionContainer}>
+            <Text style={styles.permissionText}>Vui lòng cấp quyền Camera</Text>
+            <TouchableOpacity onPress={Linking.openSettings} style={styles.permButton}>
+                <Text style={styles.permBtnText}>Mở Cài đặt</Text>
+            </TouchableOpacity>
+         </View>
+      );
+  }
+
+  if (!device) {
+      return <View style={styles.permissionContainer}><Text style={{color:'#FFF'}}>Không tìm thấy Camera</Text></View>;
+  }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Quét hóa đơn thông minh</Text>
-      <Text style={styles.subtitle}>
-        Chụp ảnh hóa đơn của bạn, AI sẽ tự động phân tích và lưu chi tiêu.
-      </Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      
+      {/* Camera View or Captured Image */}
+      {capturedImage ? (
+         <ImageBackground source={{uri: capturedImage}} style={styles.FullScreen} resizeMode="cover">
+            <View style={styles.overlay} />
+         </ImageBackground>
+      ) : (
+         <Camera
+            ref={camera}
+            style={styles.FullScreen}
+            device={device}
+            format={format}
+            isActive={isActive}
+            photo={true}
+            enableZoomGesture
+         />
+      )}
 
-      <View style={styles.previewCard}>
-        {fileUrl ? (
-          <View style={styles.imagePreviewWrap}>
-            <Image source={{ uri: fileUrl }} style={styles.imagePreview} />
-            {isScanning && (
-              <View style={styles.scanningOverlay}>
-                <Animated.View
-                  style={[styles.scanLineAnim, { transform: [{ translateY }] }]}
-                />
-              </View>
-            )}
-            <TouchableOpacity style={styles.clearBtn} onPress={clearImage}>
-              <Text style={styles.clearBtnText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.placeholderWrap}>
-            <Text style={styles.placeholderText}>Chưa có ảnh hóa đơn</Text>
-          </View>
+      {/* Header Controls */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+          <Ionicons name="close" size={24} color="#FFF" />
+        </TouchableOpacity>
+        
+        <Text style={styles.headerTitle}>Quét hóa đơn</Text>
+        
+        {!capturedImage && (
+           <TouchableOpacity onPress={() => setFlash(f => f === 'off' ? 'on' : 'off')} style={styles.iconBtn}>
+             <Ionicons name={flash === 'on' ? "flash" : "flash-off"} size={24} color="#FFF" />
+           </TouchableOpacity>
         )}
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.secondaryButton]}
-            onPress={() => pickImage('camera')}
-          >
-            <Text style={styles.secondaryText}>Chụp ảnh</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              styles.secondaryButton,
-              styles.lastAction,
-            ]}
-            onPress={() => pickImage('gallery')}
-          >
-            <Text style={styles.secondaryText}>Thư viện</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.inputLabel}>Hoặc dán URL/Base64:</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="https://... hoặc data:image/jpeg;base64,..."
-          value={fileUrl}
-          onChangeText={setFileUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-          multiline
-        />
+        {capturedImage && <View style={{width: 40}} />}
       </View>
 
-      <TouchableOpacity
-        style={[
-          styles.scanButton,
-          (ocrState.isLoading || isScanning || !fileUrl) && styles.disabled,
-        ]}
-        onPress={handleScan}
-        disabled={ocrState.isLoading || isScanning || !fileUrl}
-      >
-        {ocrState.isLoading || isScanning ? (
-          <ActivityIndicator color="#FFF" />
-        ) : (
-          <Text style={styles.scanText}>Bắt đầu quét</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+      {/* Scanner Overlay */}
+      <View style={styles.scannerContainer}>
+        <View style={styles.scannerFrame}>
+           <View style={[styles.corner, styles.tl]} />
+           <View style={[styles.corner, styles.tr]} />
+           <View style={[styles.corner, styles.bl]} />
+           <View style={[styles.corner, styles.br]} />
+           
+           <Animated.View
+              style={[
+                styles.scanLine,
+                { transform: [{ translateY: scanLineAnim }] },
+              ]}
+            >
+               <LinearGradient
+                  colors={['rgba(255, 66, 137, 0)', 'rgba(255, 66, 137, 1)', 'rgba(255, 66, 137, 0)']}
+                  start={{x:0, y:0}} end={{x:1, y:0}}
+                  style={{flex:1}}
+               />
+            </Animated.View>
+
+            {isScanning && (
+               <View style={styles.loadingOverlay}>
+                  <ActivityIndicator size="large" color="#FF4289" />
+                  <Text style={styles.loadingText}>Đang xử lý...</Text>
+               </View>
+            )}
+        </View>
+        <Text style={styles.guideText}>
+           {isScanning ? 'Vui lòng đợi giây lát...' : 'Di chuyển hóa đơn vào khung'}
+        </Text>
+      </View>
+
+      {/* Bottom Controls */}
+      <View style={styles.bottomBar}>
+         {!capturedImage ? (
+            <View style={styles.captureControls}>
+               <TouchableOpacity onPress={pickImage} style={styles.smallBtn}>
+                  <Ionicons name="images" size={24} color="#FFF" />
+               </TouchableOpacity>
+
+               <TouchableOpacity onPress={takePhoto} style={styles.shutterBtn}>
+                  <View style={styles.shutterInner} />
+               </TouchableOpacity>
+
+               <View style={{width: 40}} /> 
+            </View>
+         ) : (
+             <View style={styles.resultControls}>
+                {!isScanning && (
+                   <TouchableOpacity onPress={retake} style={styles.retakeBtn}>
+                      <Ionicons name="refresh" size={20} color="#FFF" />
+                      <Text style={styles.retakeText}>Chụp lại</Text>
+                   </TouchableOpacity>
+                )}
+             </View>
+         )}
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#000',
   },
-  content: {
-    padding: Spacing.lg,
+  permissionContainer: {
+     flex: 1, 
+     backgroundColor: '#000',
+     justifyContent: 'center',
+     alignItems: 'center'
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+  permissionText: {
+     color: '#FFF',
+     marginBottom: 20
   },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.lg,
+  permButton: {
+     padding: 10,
+     backgroundColor: Colors.primary,
+     borderRadius: 8
   },
-  previewCard: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    ...Shadow.card,
+  permBtnText: {
+     color: '#FFF', 
+     fontWeight: 'bold'
   },
-  imagePreviewWrap: {
-    width: '100%',
-    height: 300,
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    backgroundColor: Colors.border,
-    marginBottom: Spacing.md,
-    position: 'relative',
+  FullScreen: {
+     ...StyleSheet.absoluteFillObject,
+     backgroundColor: '#000'
   },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+  overlay: {
+     ...StyleSheet.absoluteFillObject,
+     backgroundColor: 'rgba(0,0,0,0.5)'
   },
-  placeholderWrap: {
-    width: '100%',
-    height: 120,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  placeholderText: {
-    color: Colors.textMuted,
-    fontSize: 14,
-  },
-  scanningOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-  },
-  scanLineAnim: {
-    height: 3,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  clearBtn: {
+  header: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  clearBtnText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  actionRow: {
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 0, 
+    right: 0,
     flexDirection: 'row',
-    marginBottom: Spacing.lg,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: Radius.md,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginRight: Spacing.sm,
+    paddingHorizontal: 20,
+    zIndex: 10
   },
-  secondaryButton: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  headerTitle: {
+     color: '#FFF',
+     fontSize: 18,
+     fontWeight: '600'
   },
-  secondaryText: {
-    color: Colors.textPrimary,
-    fontWeight: '600',
+  iconBtn: {
+     padding: 8,
+     backgroundColor: 'rgba(0,0,0,0.3)',
+     borderRadius: 20
   },
-  lastAction: {
-    marginRight: 0,
+  scannerContainer: {
+     flex: 1,
+     justifyContent: 'center',
+     alignItems: 'center'
   },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+  scannerFrame: {
+     width: SCAN_SIZE,
+     height: SCAN_SIZE * 1.4,
+     position: 'relative',
   },
-  input: {
-    minHeight: 80,
-    backgroundColor: Colors.card,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    color: Colors.textPrimary,
-    fontSize: 13,
+  corner: {
+    position: 'absolute',
+    width: 30, 
+    height: 30,
+    borderColor: '#FF4289',
+    borderWidth: 4,
+    borderRadius: 4
   },
-  scanButton: {
-    marginTop: Spacing.xl,
-    paddingVertical: 16,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    ...Shadow.soft,
+  tl: { top: 0, left: 0, borderBottomWidth: 0, borderRightWidth: 0 },
+  tr: { top: 0, right: 0, borderBottomWidth: 0, borderLeftWidth: 0 },
+  bl: { bottom: 0, left: 0, borderTopWidth: 0, borderRightWidth: 0 },
+  br: { bottom: 0, right: 0, borderTopWidth: 0, borderLeftWidth: 0 },
+  
+  scanLine: {
+     width: '100%',
+     height: 4,
+     opacity: 0.8
   },
-  scanText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
+  guideText: {
+     color: '#FFF',
+     marginTop: 20,
+     fontSize: 14,
+     opacity: 0.8,
+     backgroundColor: 'rgba(0,0,0,0.5)',
+     paddingHorizontal: 12,
+     paddingVertical: 6,
+     borderRadius: 16
   },
-  disabled: {
-    opacity: 0.5,
+  loadingOverlay: {
+     ...StyleSheet.absoluteFillObject,
+     justifyContent: 'center',
+     alignItems: 'center',
+     backgroundColor: 'rgba(0,0,0,0.4)',
+     borderRadius: 10
   },
+  loadingText: {
+     color: '#FF4289',
+     marginTop: 10,
+     fontWeight: 'bold'
+  },
+  bottomBar: {
+     position: 'absolute',
+     bottom: 0,
+     left: 0, 
+     right: 0,
+     height: 150, // Increase height
+     backgroundColor: 'rgba(0,0,0,0.6)',
+     justifyContent: 'center',
+     paddingBottom: 40, // Add padding bottom
+     zIndex: 99999, // Force on top
+  },
+  captureControls: {
+     flexDirection: 'row',
+     justifyContent: 'space-around',
+     alignItems: 'center'
+  },
+  shutterBtn: {
+     width: 72, 
+     height: 72,
+     borderRadius: 36,
+     backgroundColor: '#FFF',
+     justifyContent: 'center',
+     alignItems: 'center'
+  },
+  shutterInner: {
+     width: 64,
+     height: 64,
+     borderRadius: 32,
+     borderWidth: 2,
+     borderColor: '#000',
+     backgroundColor: '#FFF'
+  },
+  smallBtn: {
+     padding: 12,
+  },
+  resultControls: {
+     alignItems: 'center',
+  },
+  retakeBtn: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     backgroundColor: 'rgba(255,255,255,0.2)',
+     paddingHorizontal: 20,
+     paddingVertical: 10,
+     borderRadius: 20
+  },
+  retakeText: {
+     color: '#FFF',
+     marginLeft: 8,
+     fontWeight: '600'
+  }
 });
 
 export default OCRScanScreen;
