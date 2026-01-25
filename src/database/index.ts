@@ -1,11 +1,24 @@
-// Cấu hình SQLite cho Offline mode
-// Ensure you have installed react-native-sqlite-storage
-// npm install react-native-sqlite-storage
+import { Database } from '@nozbe/watermelondb';
+import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 
-import { enablePromise, openDatabase } from 'react-native-sqlite-storage';
+import { mySchema } from './schema';
+import ExpenseModel from './models/ExpenseModel';
+// import BudgetModel from './models/BudgetModel'; // Will create later
 
-enablePromise(true);
+const adapter = new SQLiteAdapter({
+  schema: mySchema,
+  // (You might want to comment out migration events for now)
+  // migrations, 
+  jsi: true, // Enable JSI for faster database operations
+  onSetUpError: error => {
+    // Database failed to load -- offer the user to reload the app or log out
+  }
+});
 
-export const getDBConnection = async () => {
-  return openDatabase({ name: 'fepa-mobile.db', location: 'default' });
-};
+export const database = new Database({
+  adapter,
+  modelClasses: [
+    ExpenseModel,
+    // BudgetModel,
+  ],
+});

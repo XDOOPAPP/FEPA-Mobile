@@ -63,6 +63,12 @@ const VoiceInputScreen: React.FC = () => {
   );
 
   useEffect(() => {
+    // Check if Voice module is available
+    if (!Voice || typeof Voice.start !== 'function') {
+      console.warn('Voice module not available');
+      return;
+    }
+
     Voice.onSpeechResults = (event: SpeechResultsEvent) => {
       const result = event.value?.[0] || '';
       if (result) {
@@ -74,15 +80,17 @@ const VoiceInputScreen: React.FC = () => {
       const result = event.value?.[0] || '';
       setPartial(result);
     };
-    Voice.onSpeechError = () => {
+    Voice.onSpeechError = (error: any) => {
+      console.error('Speech error:', error);
       setIsRecording(false);
+      Alert.alert('Lỗi ghi âm', 'Không thể nhận diện giọng nói. Vui lòng thử lại.');
     };
     Voice.onSpeechEnd = () => {
       setIsRecording(false);
     };
 
     return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
+      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
     };
   }, []);
 
@@ -103,6 +111,12 @@ const VoiceInputScreen: React.FC = () => {
   };
 
   const handleStart = async () => {
+    // Check if Voice module is available
+    if (!Voice || typeof Voice.start !== 'function') {
+      Alert.alert('Không khả dụng', 'Tính năng ghi âm giọng nói chưa được cài đặt đúng trên thiết bị này.');
+      return;
+    }
+
     const granted = permissionGranted || (await requestPermission());
     if (!granted) {
       Alert.alert('Thiếu quyền', 'Vui lòng cấp quyền ghi âm.');
@@ -111,12 +125,43 @@ const VoiceInputScreen: React.FC = () => {
     setPartial('');
     setTranscript('');
     setIsRecording(true);
-    await Voice.start('vi-VN');
+    
+    setPartial('');
+    setTranscript('');
+    setIsRecording(true);
+    
+    try {
+      // Safety: Destroy previous instance and listeners
+      try {
+        await Voice.destroy();
+        await Voice.removeAllListeners();
+      } catch (e) { /* Ignore cleanup errors */ }
+
+      // Double check availability
+      if (Voice) {
+         await Voice.start('vi-VN');
+      } else {
+         throw new Error('Module ghi âm chưa sẵn sàng.');
+      }
+    } catch (error: any) {
+      setIsRecording(false);
+      console.error('Voice start error:', error);
+      // Don't alert if it's just a cleanup error, only if start failed
+      if (error.message !== 'Module ghi âm chưa sẵn sàng.') {
+         Alert.alert('Lỗi', 'Không thể khởi động Microphone. Vui lòng khởi động lại ứng dụng.');
+      } else {
+         Alert.alert('Lỗi', error.message);
+      }
+    }
   };
 
   const handleStop = async () => {
     setIsRecording(false);
-    await Voice.stop();
+    try {
+      await Voice.stop();
+    } catch (error) {
+      console.error('Voice stop error:', error);
+    }
   };
 
   const preview = useMemo(() => {
