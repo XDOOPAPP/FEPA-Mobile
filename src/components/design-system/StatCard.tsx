@@ -6,7 +6,7 @@ import { GlassCard } from './GlassCard';
 interface StatCardProps {
   label: string;
   amount: string;
-  type?: 'positive' | 'negative' | 'neutral';
+  type?: 'positive' | 'negative' | 'neutral' | 'info';
   icon?: React.ReactNode;
 }
 
@@ -20,6 +20,7 @@ export const StatCard: React.FC<StatCardProps> = ({
     switch(type) {
       case 'positive': return Colors.success;
       case 'negative': return Colors.danger;
+      case 'info': return Colors.primary;
       default: return Colors.textPrimary;
     }
   };
