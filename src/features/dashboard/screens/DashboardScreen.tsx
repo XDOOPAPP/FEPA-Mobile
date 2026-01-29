@@ -289,6 +289,37 @@ const DashboardScreen: React.FC = () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Floating AI Hub */}
+      <View style={styles.floatingHub}>
+         <TouchableOpacity 
+            style={styles.fabMain}
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate('Transactions', { screen: 'AssistantChat' })}
+         >
+            <LinearGradient
+               colors={['#8B5CF6', '#6366F1']}
+               style={styles.fabGradient}
+            >
+               <Ionicons name="sparkles" size={28} color="#FFF" />
+            </LinearGradient>
+         </TouchableOpacity>
+         
+         <View style={styles.fabOptions}>
+            <TouchableOpacity 
+               style={styles.fabMini} 
+               onPress={() => navigation.navigate('SmartScan')}
+            >
+               <Ionicons name="camera" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+               style={styles.fabMini}
+               onPress={() => navigation.navigate('Transactions', { screen: 'VoiceInput' })}
+            >
+               <Ionicons name="mic" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+         </View>
+      </View>
     </View>
   );
 };
@@ -297,6 +328,44 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  // ... (keep existing styles)
+  floatingHub: {
+    position: 'absolute',
+    bottom: 100, // Above TabBar
+    right: 20,
+    alignItems: 'center',
+  },
+  fabMain: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    ...Shadow.glow,
+    zIndex: 10,
+  },
+  fabGradient: {
+    flex: 1,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  fabOptions: {
+    position: 'absolute',
+    bottom: 70,
+    gap: 12,
+  },
+  fabMini: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.card,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadow.soft,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   bgGlow: {
     position: 'absolute',

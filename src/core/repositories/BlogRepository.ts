@@ -74,6 +74,44 @@ class BlogRepository {
     }
   }
 
+  async uploadSingleImage(fileUri: string): Promise<{ url: string; publicId: string }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: fileUri,
+        type: 'image/jpeg',
+        name: 'blog_image.jpg',
+      } as any);
+
+      const response = await this.apiClient.post(API_ENDPOINTS.BLOG_UPLOAD_SINGLE, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return this.unwrapResponse<{ url: string; publicId: string }>(response.data);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
+  async uploadMultipleImages(fileUris: string[]): Promise<{ url: string; publicId: string }[]> {
+    try {
+      const formData = new FormData();
+      fileUris.forEach((uri, index) => {
+        formData.append('files', {
+          uri,
+          type: 'image/jpeg',
+          name: `blog_image_${index}.jpg`,
+        } as any);
+      });
+
+      const response = await this.apiClient.post(API_ENDPOINTS.BLOG_UPLOAD_MULTIPLE, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return this.unwrapResponse<{ url: string; publicId: string }[]>(response.data);
+    } catch (error: any) {
+      throw this.handleError(error);
+    }
+  }
+
   private handleError(error: any): Error {
     const message =
       error.response?.data?.message ||

@@ -15,7 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { useAI } from '../../../common/hooks/useAI';
 import { AuthContext } from '../../../store/AuthContext';
-import { Colors, Radius, Spacing, Typography } from '../../../constants/theme';
+import { Colors, Radius, Spacing, Typography, Shadow } from '../../../constants/theme';
 import { saveReceipt } from '../../../utils/receiptStorage';
 import { GlassCard } from '../../../components/design-system/GlassCard';
 import { ModernInput } from '../../../components/design-system/ModernInput';
@@ -134,14 +134,23 @@ const CreateExpenseScreen: React.FC = () => {
         {/* Money Input Section */}
         <GlassCard style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>💰 Số tiền</Text>
-            <ModernInput
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0"
-                keyboardType="numeric"
-                label="Nhập số tiền (VND)"
-                containerStyle={{marginBottom: 16}}
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                    <ModernInput
+                        value={amount}
+                        onChangeText={setAmount}
+                        placeholder="0"
+                        keyboardType="numeric"
+                        label="Nhập số tiền (VND)"
+                    />
+                </View>
+                <TouchableOpacity 
+                    style={styles.micInputButton}
+                    onPress={() => navigation.navigate('VoiceInput')}
+                >
+                    <Ionicons name="mic-outline" size={24} color={Colors.primary} />
+                </TouchableOpacity>
+            </View>
             
             <TouchableOpacity 
                 style={styles.aiButton} 
@@ -338,6 +347,18 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginBottom: Spacing.xl,
+  },
+  micInputButton: {
+    width: 44,
+    height: 44,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.soft,
   },
 });
 
