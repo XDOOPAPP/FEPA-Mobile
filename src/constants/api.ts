@@ -1,8 +1,7 @@
-// API Configuration
-// 10.0.2.2 là IP của host máy từ Android emulator
-// ⚠️ NOTE: Api-gateway sử dụng /api/v1/ prefix, không phải /api/
-// export const API_BASE_URL = 'http://10.0.2.2:3000/api/v1'; // Emulator
-export const API_BASE_URL = 'http://192.168.1.98:3000/api/v1'; // Physical Device (LAN IP)
+// Server Configuration
+const SERVER_IP = '76.13.21.84';
+export const API_BASE_URL = `http://${SERVER_IP}:3000/api/v1`;
+export const SOCKET_BASE_URL = `http://${SERVER_IP}:3102`;
 
 export const API_ENDPOINTS = {
   // Auth
@@ -68,6 +67,8 @@ export const API_ENDPOINTS = {
   GET_BLOGS: '/blogs',
   GET_BLOG_SLUG: (slug: string) => `/blogs/slug/${slug}`,
   GET_BLOG_ID: (id: string) => `/blogs/${id}`,
+  BLOG_UPLOAD_SINGLE: '/blogs/upload/single',
+  BLOG_UPLOAD_MULTIPLE: '/blogs/upload/multiple',
 
   // Notifications
   NOTIFICATIONS: '/notifications',
