@@ -19,6 +19,9 @@ export interface Expense {
   receiptUrl?: string;
   notes?: string;
   tags?: string[];
+  ocrJobId?: string;
+  location?: string;
+  paymentMethod?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -31,6 +34,9 @@ export interface CreateExpenseRequest {
   receiptUrl?: string;
   notes?: string;
   tags?: string[];
+  ocrJobId?: string;
+  location?: string;
+  paymentMethod?: string;
 }
 
 export interface UpdateExpenseRequest {
@@ -41,5 +47,7 @@ export interface UpdateExpenseRequest {
   receiptUrl?: string;
   notes?: string;
   tags?: string[];
+  location?: string;
+  paymentMethod?: string;
 }
 

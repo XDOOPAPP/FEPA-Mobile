@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { axiosInstance } from '../../api/axiosInstance';
 import { API_ENDPOINTS } from '../../constants/api';
 import { OcrJob } from '../models/Ocr';
@@ -12,18 +13,29 @@ class OcrRepository {
     return payload as T;
   }
 
-  async scanInvoice(fileUrl: string): Promise<OcrJob> {
+  async scanInvoice(fileUri: string): Promise<OcrJob> {
     try {
-      // fileUrl should already be base64 data URL or http URL
-      // Local file:// URIs should be converted to base64 before calling this method
-      console.log('[OCR] Sending scan request, URL type:', 
-        fileUrl.startsWith('data:') ? 'base64' : 
-        fileUrl.startsWith('http') ? 'http' : 'other'
-      );
+      const formData = new FormData();
+      
+      // Handle different URI formats
+      const uri = Platform.OS === 'android' ? fileUri : fileUri.replace('file://', '');
+      
+      formData.append('file', {
+        uri: uri,
+        type: 'image/jpeg',
+        name: 'invoice.jpg',
+      } as any);
 
-      const response = await this.apiClient.post(API_ENDPOINTS.OCR_SCAN, {
-        fileUrl,
+      console.log('[OCR] Sending multipart scan request for:', uri);
+
+      const response = await this.apiClient.post(API_ENDPOINTS.OCR_SCAN, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        // Important for large file uploads
+        timeout: 60000, 
       });
+      
       return this.unwrapResponse<OcrJob>(response.data);
     } catch (error: any) {
       console.error('[OCR] scanInvoice error:', error);

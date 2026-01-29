@@ -211,18 +211,12 @@ const OCRScanScreen: React.FC = () => {
     try {
       setIsScanning(true);
       
-      // Convert to base64 for upload
-      let base64Url = uri;
-      if (!uri.startsWith('data:')) {
-         base64Url = await convertFileToBase64(uri);
-      }
-
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Kết nối quá thời gian.')), 60000)
       );
       
       const job = await Promise.race([
-        scanInvoice(base64Url),
+        scanInvoice(uri),
         timeoutPromise
       ]) as any;
 

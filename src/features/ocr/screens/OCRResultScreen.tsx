@@ -84,6 +84,8 @@ const OCRResultScreen: React.FC = () => {
         description: description.trim(),
         spentAt,
         receiptUrl: job.fileUrl || undefined, // Link for future reference
+        ocrJobId: job.id, // Pass job ID to link/update auto-created expense
+        location: merchantName, // Store merchant name as location
       });
 
       // 2. Save Receipt to Gallery (Local Storage)
