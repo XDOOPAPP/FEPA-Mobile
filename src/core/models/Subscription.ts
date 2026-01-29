@@ -1,11 +1,14 @@
-export type PlanInterval = 'MONTHLY' | 'YEARLY' | 'LIFETIME' | string;
+export type PlanInterval = 'MONTHLY' | 'YEARLY' | 'LIFETIME';
 
 export interface SubscriptionPlan {
   _id: string;
   name: string;
   price: number;
   interval: PlanInterval;
-  features?: string[];
+  features?: {
+    AI: boolean;
+    OCR: boolean;
+  };
   isActive?: boolean;
   isFree?: boolean;
 }
