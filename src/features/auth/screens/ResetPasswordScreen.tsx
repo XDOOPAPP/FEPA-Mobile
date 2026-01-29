@@ -34,7 +34,6 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Validate form
   const validateForm = useCallback(() => {
     const newErrors: { [key: string]: string } = {};
 
@@ -60,7 +59,6 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
     return Object.keys(newErrors).length === 0;
   }, [otp, newPassword, confirmPassword]);
 
-  // Handle reset password
   const handleResetPassword = useCallback(async () => {
     if (!validateForm()) return;
 
@@ -103,143 +101,93 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.logo}>FEPA</Text>
-          <Text style={styles.subtitle}>Đặt lại mật khẩu</Text>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerGradient}>
+          <TouchableOpacity 
+            style={styles.backButtonTop}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.logo}>FEPA</Text>
+            <Text style={styles.subtitle}>Thiết lập lại mật khẩu</Text>
+          </View>
         </View>
 
-        {/* Form Container */}
-        <View style={styles.formContainer}>
-          {/* Email Display */}
-          <View style={styles.emailBox}>
-            <Text style={styles.emailLabel}>Email</Text>
+        <GlassCard style={styles.formCard}>
+          <View style={styles.emailBadge}>
+            <Ionicons name="mail" size={16} color={Colors.primary} style={{ marginRight: 8 }} />
             <Text style={styles.emailValue}>{email}</Text>
           </View>
 
-          {/* OTP Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Mã OTP</Text>
-            <TextInput
-              style={[styles.input, errors.otp && styles.inputError]}
-              placeholder="Nhập 6 chữ số OTP"
-              placeholderTextColor="#999"
-              keyboardType="number-pad"
-              maxLength={6}
-              editable={!isLoading}
-              value={otp}
-              onChangeText={value => {
-                setOtp(value);
-                if (errors.otp) setErrors({ ...errors, otp: '' });
-              }}
-            />
-            {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-          </View>
+          <ModernInput
+            label="Mã OTP"
+            placeholder="000000"
+            keyboardType="number-pad"
+            maxLength={6}
+            value={otp}
+            onChangeText={(v) => {
+              setOtp(v);
+              if (errors.otp) setErrors({ ...errors, otp: '' });
+            }}
+            error={errors.otp}
+            style={{ textAlign: 'center', letterSpacing: 8, fontSize: 20 }}
+          />
 
-          {/* New Password Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Mật khẩu mới</Text>
-            <View
-              style={[
-                styles.passwordContainer,
-                errors.password && styles.inputError,
-              ]}
-            >
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Nhập mật khẩu mới"
-                placeholderTextColor="#999"
-                secureTextEntry={!showPassword}
-                editable={!isLoading}
-                value={newPassword}
-                onChangeText={value => {
-                  setNewPassword(value);
-                  if (errors.password) setErrors({ ...errors, password: '' });
-                }}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-              >
-                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+          <ModernInput
+            label="Mật khẩu mới"
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            value={newPassword}
+            onChangeText={(v) => {
+              setNewPassword(v);
+              if (errors.password) setErrors({ ...errors, password: '' });
+            }}
+            error={errors.password}
+            rightIcon={
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
               </TouchableOpacity>
-            </View>
-            {errors.password && (
-              <Text style={styles.errorText}>{errors.password}</Text>
-            )}
-          </View>
+            }
+          />
 
-          {/* Confirm Password Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Xác nhận mật khẩu</Text>
-            <View
-              style={[
-                styles.passwordContainer,
-                errors.confirmPassword && styles.inputError,
-              ]}
-            >
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Nhập lại mật khẩu"
-                placeholderTextColor="#999"
-                secureTextEntry={!showConfirmPassword}
-                editable={!isLoading}
-                value={confirmPassword}
-                onChangeText={value => {
-                  setConfirmPassword(value);
-                  if (errors.confirmPassword)
-                    setErrors({ ...errors, confirmPassword: '' });
-                }}
-              />
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={isLoading}
-              >
-                <Text style={styles.eyeIcon}>
-                  {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
-                </Text>
+          <ModernInput
+            label="Xác nhận mật khẩu"
+            placeholder="••••••••"
+            secureTextEntry={!showConfirmPassword}
+            value={confirmPassword}
+            onChangeText={(v) => {
+              setConfirmPassword(v);
+              if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
+            }}
+            error={errors.confirmPassword}
+            rightIcon={
+              <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
               </TouchableOpacity>
-            </View>
-            {errors.confirmPassword && (
-              <Text style={styles.errorText}>{errors.confirmPassword}</Text>
-            )}
-          </View>
+            }
+          />
 
-          {/* Reset Password Button */}
-          <TouchableOpacity
-            style={[styles.resetButton, isLoading && styles.buttonDisabled]}
+          <GradientButton
+            title="Đặt lại mật khẩu"
             onPress={handleResetPassword}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Đặt lại mật khẩu</Text>
-            )}
-          </TouchableOpacity>
+            loading={isLoading}
+            style={{ marginTop: Spacing.xl }}
+          />
 
-          {/* Resend OTP */}
           <View style={styles.resendContainer}>
-            <Text style={styles.resendText}>Không nhận được OTP? </Text>
+            <Text style={styles.resendText}>Không nhận được mã? </Text>
             <TouchableOpacity onPress={handleResendOTP} disabled={isLoading}>
-              <Text
-                style={[styles.resendLink, isLoading && styles.resendDisabled]}
-              >
-                Gửi lại
-              </Text>
+              <Text style={[styles.resendLink, isLoading && { opacity: 0.5 }]}>Gửi lại ngay</Text>
             </TouchableOpacity>
           </View>
+        </GlassCard>
 
-          {/* Back to Login */}
-          <View style={styles.backContainer}>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.backLink}>← Quay lại đăng nhập</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>© 2026 FEPA. Bảo lưu mọi quyền.</Text>
         </View>
@@ -251,150 +199,85 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
   },
-  headerContainer: {
+  headerGradient: {
+    backgroundColor: Colors.primary,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Spacing.xxl + 20,
+    paddingHorizontal: Spacing.lg,
+    borderBottomLeftRadius: Radius.xxl,
+    borderBottomRightRadius: Radius.xxl,
+  },
+  backButtonTop: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: Spacing.md,
+  },
+  headerContent: {
+    alignItems: 'center',
   },
   logo: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#2196F3',
-    marginBottom: 8,
+    ...Typography.h1,
+    color: '#FFF',
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    ...Typography.body,
+    color: 'rgba(255,255,255,0.8)',
   },
-  formContainer: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  formCard: {
+    marginTop: -Spacing.xxl,
+    marginHorizontal: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    ...Shadow.lg,
   },
-  emailBox: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
-  },
-  emailLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  emailValue: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  inputWrapper: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#333',
-    backgroundColor: '#FAFAFA',
-  },
-  inputError: {
-    borderColor: '#F44336',
-    backgroundColor: '#FFEBEE',
-  },
-  passwordContainer: {
+  emailBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.full,
+    alignSelf: 'center',
+    marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    paddingRight: 12,
-    backgroundColor: '#FAFAFA',
+    borderColor: Colors.border,
   },
-  passwordInput: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#333',
-  },
-  eyeIcon: {
-    fontSize: 18,
-  },
-  errorText: {
-    color: '#F44336',
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  resetButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
+  emailValue: {
+    ...Typography.bodyBold,
+    color: Colors.textPrimary,
   },
   resendContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: Spacing.xl,
   },
   resendText: {
-    color: '#666',
-    fontSize: 13,
+    ...Typography.body,
+    color: Colors.textSecondary,
   },
   resendLink: {
-    color: '#2196F3',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  resendDisabled: {
-    opacity: 0.5,
-  },
-  backContainer: {
-    alignItems: 'center',
-  },
-  backLink: {
-    color: '#2196F3',
-    fontSize: 13,
-    fontWeight: '600',
+    ...Typography.bodyBold,
+    color: Colors.primary,
   },
   footer: {
     alignItems: 'center',
-    marginTop: 20,
+    paddingVertical: Spacing.xl,
   },
   footerText: {
-    color: '#999',
-    fontSize: 12,
+    ...Typography.caption,
+    color: Colors.textMuted,
   },
 });
 

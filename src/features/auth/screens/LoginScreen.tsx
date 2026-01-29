@@ -11,11 +11,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  StatusBar,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useAuth } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/theme';
+import { ModernInput } from '../../../components/design-system/ModernInput';
+import { GradientButton } from '../../../components/design-system/GradientButton';
+import { GlassCard } from '../../../components/design-system/GlassCard';
 
 type RootStackParamList = {
   Login: undefined;
@@ -55,8 +60,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
     if (!formData.password) {
       newErrors.password = 'Mật khẩu không được bỏ trống';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
     setErrors(newErrors);
@@ -123,6 +126,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -130,74 +134,42 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         {/* Header with Gradient */}
         <View style={styles.headerGradient}>
           <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logo}>FEPA</Text>
-              <View style={styles.logoUnderline} />
-            </View>
+            <Text style={styles.logo}>FEPA</Text>
             <Text style={styles.subtitle}>Quản lý tài chính thông minh</Text>
             <Text style={styles.tagline}>Theo dõi chi tiêu, lập kế hoạch tương lai</Text>
           </View>
         </View>
 
         {/* Form Container */}
-        <View style={styles.formContainer}>
-          <Text style={styles.formTitle}>Đăng nhập</Text>
+        <GlassCard style={styles.formCard}>
+          <Text style={styles.formTitle}>Chào mừng trở lại</Text>
           
-          {/* Email Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Email</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.email && styles.inputContainerError
-            ]}>
-              <TextInput
-                style={styles.input}
-                placeholder="your@email.com"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-                value={formData.email}
-                onChangeText={value => handleInputChange('email', value)}
-              />
-            </View>
-            {errors.email && (
-              <Text style={styles.errorText}>{errors.email}</Text>
-            )}
-          </View>
+          <ModernInput
+            label="Địa chỉ Email"
+            placeholder="your@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={formData.email}
+            onChangeText={value => handleInputChange('email', value)}
+            error={errors.email}
+            leftIcon={<Ionicons name="mail-outline" size={20} color={Colors.textMuted} />}
+          />
 
-          {/* Password Input */}
-          <View style={styles.inputWrapper}>
-            <Text style={styles.label}>Mật khẩu</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.password && styles.inputContainerError
-            ]}>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor={Colors.textMuted}
-                secureTextEntry={!showPassword}
-                editable={!isLoading}
-                value={formData.password}
-                onChangeText={value => handleInputChange('password', value)}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-              >
-                <Text style={styles.eyeButtonText}>
-                  {showPassword ? '👁️' : '👁️‍🗨️'}
-                </Text>
+          <ModernInput
+            label="Mật khẩu"
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            value={formData.password}
+            onChangeText={value => handleInputChange('password', value)}
+            error={errors.password}
+            leftIcon={<Ionicons name="lock-closed-outline" size={20} color={Colors.textMuted} />}
+            rightIcon={
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
               </TouchableOpacity>
-            </View>
-            {errors.password && (
-              <Text style={styles.errorText}>{errors.password}</Text>
-            )}
-          </View>
+            }
+          />
 
-          {/* Forgot Password Link */}
           <TouchableOpacity
             style={styles.forgotContainer}
             onPress={() => navigation.navigate('ForgotPassword')}
@@ -205,28 +177,19 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={styles.forgotText}>Quên mật khẩu?</Text>
           </TouchableOpacity>
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+          <GradientButton
+            title="Đăng nhập"
             onPress={handleLogin}
-            disabled={isLoading}
-            activeOpacity={0.8}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Đăng nhập</Text>
-            )}
-          </TouchableOpacity>
+            loading={isLoading}
+            style={{ marginTop: Spacing.md }}
+          />
 
-          {/* Divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>hoặc</Text>
+            <Text style={styles.dividerText}>hoặc tiếp tục với</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Social Login */}
           <TouchableOpacity
             style={styles.googleButton}
             onPress={async () => {
@@ -238,16 +201,20 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             }}
             disabled={isLoading}
           >
-             <Text style={styles.googleButtonText}>Sign in with Google</Text>
+            <Ionicons name="logo-google" size={20} color={Colors.textPrimary} style={{ marginRight: Spacing.sm }} />
+            <Text style={styles.googleButtonText}>Google</Text>
           </TouchableOpacity>
 
-          {/* Register Link */}
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Chưa có tài khoản? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
               <Text style={styles.registerLink}>Đăng ký ngay</Text>
             </TouchableOpacity>
           </View>
+        </GlassCard>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>© 2026 FEPA. Tất cả quyền được bảo lưu.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -264,8 +231,8 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     backgroundColor: Colors.primary,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: Spacing.xxl,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: Spacing.xxl + 40,
     paddingHorizontal: Spacing.lg,
     borderBottomLeftRadius: Radius.xxl,
     borderBottomRightRadius: Radius.xxl,
@@ -273,38 +240,28 @@ const styles = StyleSheet.create({
   headerContent: {
     alignItems: 'center',
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
   logo: {
     ...Typography.h1,
-    color: Colors.textInverse,
+    color: '#FFF',
+    fontSize: 48,
     marginBottom: Spacing.xs,
-  },
-  logoUnderline: {
-    width: 60,
-    height: 4,
-    backgroundColor: Colors.accentLight,
-    borderRadius: Radius.xs,
   },
   subtitle: {
     ...Typography.h3,
-    color: Colors.textInverse,
+    color: 'rgba(255,255,255,0.9)',
     marginBottom: Spacing.xs,
     textAlign: 'center',
   },
   tagline: {
-    ...Typography.caption,
-    color: Colors.primarySoft,
+    ...Typography.body,
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
   },
-  formContainer: {
-    backgroundColor: Colors.card,
-    marginTop: -Spacing.xl,
+  formCard: {
+    marginTop: -Spacing.xxl - 20,
     marginHorizontal: Spacing.lg,
-    borderRadius: Radius.xl,
     padding: Spacing.lg,
+    borderRadius: Radius.xl,
     ...Shadow.lg,
   },
   formTitle: {
@@ -313,74 +270,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     textAlign: 'center',
   },
-  inputWrapper: {
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    ...Typography.captionBold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    minHeight: 52,
-  },
-  inputContainerError: {
-    borderColor: Colors.danger,
-    backgroundColor: Colors.dangerLight,
-  },
-  input: {
-    flex: 1,
-    ...Typography.body,
-    color: Colors.textPrimary,
-    paddingVertical: Spacing.md,
-  },
-  eyeButton: {
-    padding: Spacing.xs,
-  },
-  eyeButtonText: {
-    fontSize: 20,
-  },
-  errorText: {
-    ...Typography.small,
-    color: Colors.danger,
-    marginTop: Spacing.xs,
-    marginLeft: Spacing.xs,
-  },
   forgotContainer: {
     alignItems: 'flex-end',
     marginBottom: Spacing.xl,
+    marginTop: -Spacing.sm,
   },
   forgotText: {
-    ...Typography.captionBold,
-    color: Colors.primary,
-  },
-  loginButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.md + 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.lg,
-    ...Shadow.md,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
     ...Typography.bodyBold,
-    color: Colors.textInverse,
+    color: Colors.primary,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: Spacing.lg,
+    marginVertical: Spacing.xl,
   },
   dividerLine: {
     flex: 1,
@@ -396,6 +298,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: Spacing.lg,
   },
   registerText: {
     ...Typography.body,
@@ -408,7 +311,8 @@ const styles = StyleSheet.create({
   googleButton: {
     backgroundColor: '#FFF',
     borderRadius: Radius.md,
-    paddingVertical: Spacing.md + 2,
+    paddingVertical: Spacing.md,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
@@ -419,6 +323,14 @@ const styles = StyleSheet.create({
   googleButtonText: {
     ...Typography.bodyBold,
     color: Colors.textPrimary,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xxl,
+  },
+  footerText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
   },
 });
 

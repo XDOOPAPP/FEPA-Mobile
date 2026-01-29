@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { useAuth } from '../../../common/hooks/useMVVM';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors, Radius, Spacing, Typography } from '../../../constants/theme';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/theme';
 import { GradientButton } from '../../../components/design-system/GradientButton'; // Assuming we have this
 import { ModernInput } from '../../../components/design-system/ModernInput'; // Assuming we have this
 import { GlassCard } from '../../../components/design-system/GlassCard';
@@ -44,6 +45,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [step, setStep] = useState<RegisterStep>('info');
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<RegisterFormData>({
     fullName: '',
     email: '',
@@ -53,18 +55,20 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   });
   const [errors, setErrors] = useState<Partial<RegisterFormData>>({});
 
-  // Validate Form
   const validateForm = useCallback(() => {
     const newErrors: Partial<RegisterFormData> = {};
     if (!formData.fullName.trim()) newErrors.fullName = 'Tên đầy đủ không được bỏ trống';
     if (!formData.email.trim()) newErrors.email = 'Email không được bỏ trống';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Email không hợp lệ';
+    
     if (!formData.password) newErrors.password = 'Mật khẩu không được bỏ trống';
+    else if (formData.password.length < 6) newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+    
     if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Mật khẩu không khớp';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [formData]);
 
-  // Handle Register
   const handleRegister = useCallback(async () => {
     if (!validateForm()) return;
     try {
@@ -76,9 +80,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [formData, validateForm, register]);
 
-  // Handle Verify OTP
   const handleVerifyOTP = useCallback(async () => {
-    if (!otp.trim()) return setOtpError('Nhập OTP');
+    if (!otp.trim()) return setOtpError('Vui lòng nhập mã OTP');
     try {
       await verifyOtp(formData.email.trim(), otp);
       Alert.alert('Thành công', 'Đăng ký hoàn tất!', [
@@ -99,101 +102,132 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.logo}>FEPA</Text>
-          <Text style={styles.subtitle}>
-            {step === 'info' ? 'Tạo tài khoản mới' : 'Xác thực Email'}
-          </Text>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerGradient}>
+          <TouchableOpacity 
+            style={styles.backButtonTop}
+            onPress={() => step === 'otp' ? setStep('info') : navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.logo}>FEPA</Text>
+            <Text style={styles.subtitle}>
+              {step === 'info' ? 'Bắt đầu hành trình tài chính' : 'Xác thực tài khoản'}
+            </Text>
+          </View>
         </View>
 
         <GlassCard style={styles.formCard}>
           {step === 'info' ? (
             <>
+              <Text style={styles.formTitle}>Đăng ký thành viên</Text>
+              
               <ModernInput
                 label="Họ và tên"
                 placeholder="Nguyễn Văn A"
                 value={formData.fullName}
                 onChangeText={v => handleInputChange('fullName', v)}
                 error={errors.fullName}
+                leftIcon={<Ionicons name="person-outline" size={20} color={Colors.textMuted} />}
               />
+              
               <ModernInput
                 label="Email"
-                placeholder="email@example.com"
+                placeholder="your@email.com"
                 keyboardType="email-address"
+                autoCapitalize="none"
                 value={formData.email}
                 onChangeText={v => handleInputChange('email', v)}
                 error={errors.email}
+                leftIcon={<Ionicons name="mail-outline" size={20} color={Colors.textMuted} />}
               />
-              <ModernInput
-                label="Số điện thoại (Tuỳ chọn)"
-                placeholder="0912..."
-                keyboardType="phone-pad"
-                value={formData.phone}
-                onChangeText={v => handleInputChange('phone', v)}
-              />
+              
               <ModernInput
                 label="Mật khẩu"
-                placeholder="******"
-                secureTextEntry
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
                 value={formData.password}
                 onChangeText={v => handleInputChange('password', v)}
                 error={errors.password}
+                leftIcon={<Ionicons name="lock-closed-outline" size={20} color={Colors.textMuted} />}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                }
               />
+              
               <ModernInput
                 label="Xác nhận mật khẩu"
-                placeholder="******"
-                secureTextEntry
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
                 value={formData.confirmPassword}
                 onChangeText={v => handleInputChange('confirmPassword', v)}
                 error={errors.confirmPassword}
+                leftIcon={<Ionicons name="shield-checkmark-outline" size={20} color={Colors.textMuted} />}
               />
 
               <GradientButton
-                title="Đăng Ký"
+                title="Đăng Ký Ngay"
                 onPress={handleRegister}
                 loading={authState.isLoading}
-                style={{ marginTop: Spacing.md }}
+                style={{ marginTop: Spacing.xl }}
               />
 
               <View style={styles.loginContainer}>
                 <Text style={styles.loginText}>Đã có tài khoản? </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                  <Text style={styles.loginLink}>Đăng nhập</Text>
+                  <Text style={styles.loginLink}>Đăng nhập ngay</Text>
                 </TouchableOpacity>
               </View>
             </>
           ) : (
             <>
+              <View style={styles.emailBadge}>
+                <Ionicons name="mail" size={16} color={Colors.primary} style={{ marginRight: 8 }} />
+                <Text style={styles.emailValue}>{formData.email}</Text>
+              </View>
+              
               <Text style={styles.otpInstruction}>
-                Nhập mã OTP 6 số đã gửi tới {formData.email}
+                Vui lòng nhập mã OTP 6 số đã được gửi tới địa chỉ email của bạn để kích hoạt tài khoản.
               </Text>
+              
                <ModernInput
-                label="Mã OTP"
+                label="Mã xác thực OTP"
                 placeholder="000000"
                 keyboardType="number-pad"
                 maxLength={6}
                 value={otp}
                 onChangeText={setOtp}
                 error={otpError}
-                style={{ textAlign: 'center', letterSpacing: 5, fontSize: 18 }}
+                style={{ textAlign: 'center', letterSpacing: 8, fontSize: 22 }}
               />
+              
               <GradientButton
-                title="Xác Thực"
+                title="Xác thực & Hoàn tất"
                 onPress={handleVerifyOTP}
                 loading={authState.isLoading}
-                style={{ marginTop: Spacing.md }}
+                style={{ marginTop: Spacing.xl }}
               />
+              
               <TouchableOpacity
                 onPress={() => setStep('info')}
                 style={styles.cancelButton}
               >
-                <Text style={styles.cancelText}>Quay lại</Text>
+                <Text style={styles.cancelText}>Quay lại chỉnh sửa thông tin</Text>
               </TouchableOpacity>
             </>
           )}
         </GlassCard>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Bằng cách đăng ký, bạn đồng ý với Điều khoản & Chính sách của FEPA.</Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -206,50 +240,107 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    padding: Spacing.lg,
   },
-  headerContainer: {
+  headerGradient: {
+    backgroundColor: Colors.primary,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Spacing.xxl + 20,
+    paddingHorizontal: Spacing.lg,
+    borderBottomLeftRadius: Radius.xxl,
+    borderBottomRightRadius: Radius.xxl,
+  },
+  backButtonTop: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  headerContent: {
+    alignItems: 'center',
   },
   logo: {
     ...Typography.h1,
-    color: Colors.primary,
+    color: '#FFF',
     marginBottom: Spacing.xs,
   },
   subtitle: {
     ...Typography.body,
-    fontSize: 18,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
   },
   formCard: {
+    marginTop: -Spacing.xxl,
+    marginHorizontal: Spacing.lg,
     padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    ...Shadow.lg,
+  },
+  formTitle: {
+    ...Typography.h3,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: Spacing.lg,
+    alignItems: 'center',
+    marginTop: Spacing.xl,
   },
   loginText: {
+    ...Typography.body,
     color: Colors.textSecondary,
   },
   loginLink: {
+    ...Typography.bodyBold,
     color: Colors.primary,
-    fontWeight: 'bold',
+  },
+  emailBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.full,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emailValue: {
+    ...Typography.bodyBold,
+    color: Colors.textPrimary,
   },
   otpInstruction: {
+    ...Typography.body,
     color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
     textAlign: 'center',
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.sm,
   },
   cancelButton: {
-    marginTop: Spacing.md,
+    marginTop: Spacing.xl,
     alignItems: 'center',
   },
   cancelText: {
+    ...Typography.body,
     color: Colors.textMuted,
-  }
+    textDecorationLine: 'underline',
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+  },
+  footerText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
 });
 
 export default RegisterScreen;
