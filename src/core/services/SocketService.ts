@@ -1,8 +1,6 @@
 import { io, Socket } from 'socket.io-client';
-import { Platform, DeviceEventEmitter } from 'react-native';
-
-// Android Emulator uses 10.0.2.2 for localhost
-const SOCKET_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3102' : 'http://localhost:3102';
+import { DeviceEventEmitter } from 'react-native';
+import { SOCKET_BASE_URL } from '../../constants/api';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -22,9 +20,9 @@ class SocketService {
       this.socket.disconnect();
     }
 
-    console.log(`🔌 Connecting to Socket Gateway at ${SOCKET_URL}...`);
+    console.log(`🔌 Connecting to Socket Gateway at ${SOCKET_BASE_URL}...`);
 
-    this.socket = io(SOCKET_URL, {
+    this.socket = io(SOCKET_BASE_URL, {
       auth: { token: this.token },
       transports: ['websocket'], // Prefer WebSocket
       reconnection: true,
