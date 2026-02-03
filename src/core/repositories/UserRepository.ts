@@ -4,8 +4,9 @@ import {
   RegisterRequest,
   User,
 } from '../models/User';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { axiosInstance } from '../../api/axiosInstance';
-import { API_ENDPOINTS } from '../../constants/api';
+import { API_ENDPOINTS, API_BASE_URL } from '../../constants/api';
 
 class UserRepository {
   private apiClient = axiosInstance;
@@ -195,6 +196,28 @@ class UserRepository {
   }
 
   /**
+   * Update avatar - Gửi ảnh dưới dạng Base64 (Khớp với Base64 Mode trên Gateway)
+   * @param base64Data - Chuỗi base64 của ảnh
+   */
+  async updateAvatar(base64Data: string): Promise<User> {
+    try {
+      console.log('[UserRepo] Sending Base64 avatar to Gateway (3000)...');
+      
+      const response = await this.apiClient.post(
+        '/auth/profile', 
+        { 
+          avatar: `data:image/jpeg;base64,${base64Data}` 
+        }
+      );
+      
+      return response.data?.data || response.data;
+    } catch (error: any) {
+      console.error('[UserRepo] Base64 Update Error:', error?.response?.data || error.message);
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Đổi mật khẩu (khi user đã authenticated)
    * Response: { message: "Password changed successfully" }
    */
@@ -225,12 +248,18 @@ class UserRepository {
   }
 
   private handleError(error: any): Error {
-    // Lấy message từ backend response
+    // Lấy message từ backend response (check nhiều field phổ biến)
     const message =
       error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.response?.data?.error?.message ||
       error.message ||
       'Có lỗi xảy ra. Vui lòng thử lại.';
-    return new Error(message);
+    
+    // Tạo error mới và giữ lại response để ViewModel có thể check status
+    const newError: any = new Error(message);
+    newError.response = error.response;
+    return newError;
   }
 }
 

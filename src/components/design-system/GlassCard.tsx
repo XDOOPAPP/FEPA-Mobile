@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, ViewStyle, StyleSheet, Platform } from 'react-native';
+import { View, ViewStyle, StyleSheet, Platform, StyleProp } from 'react-native';
 import { Colors, Radius, Shadow } from '../../constants/theme';
 import LinearGradient from 'react-native-linear-gradient';
 
 interface GlassCardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   variant?: 'default' | 'elevated' | 'featured';
 }
 

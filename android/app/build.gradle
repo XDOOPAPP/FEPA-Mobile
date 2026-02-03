@@ -118,7 +118,6 @@ dependencies {
         implementation jscFlavor
     }
     implementation project(':react-native-voice_voice')
-    implementation project(':watermelondb-jsi')
 }
 
 project.ext.vectoricons = [

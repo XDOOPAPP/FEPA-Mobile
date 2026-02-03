@@ -1,63 +1,80 @@
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { axiosInstance } from '../../api/axiosInstance';
-import { API_ENDPOINTS } from '../../constants/api';
+import { API_ENDPOINTS, API_BASE_URL } from '../../constants/api';
 import { OcrJob } from '../models/Ocr';
 
 class OcrRepository {
   private apiClient = axiosInstance;
 
-  private unwrapResponse<T>(payload: any): T {
-    if (payload && typeof payload === 'object' && 'data' in payload) {
-      return payload.data as T;
-    }
-    return payload as T;
-  }
-
+  /**
+   * Scan Invoice - Gửi FILE chuẩn qua Multipart/form-data dùng XHR
+   */
   async scanInvoice(fileUri: string): Promise<OcrJob> {
-    try {
+    console.log('[OCR] === Start scanInvoice (Standard Multipart XHR) ===');
+    
+    const token = await AsyncStorage.getItem('userToken');
+    const url = `${API_BASE_URL}${API_ENDPOINTS.OCR_SCAN}`;
+
+    // Xử lý URI: Nếu là base64 thì không được, phải là đường dẫn file
+    let cleanUri = fileUri;
+    if (cleanUri.startsWith('data:')) {
+       // Nếu lỡ nhận base64 từ gallery, chúng ta phải dùng cách khác hoặc báo lỗi. 
+       // Nhưng tốt nhất là Screen nên gửi URI file://
+       console.warn('[OCR] Warning: Received base64, converting back to file is needed for standard upload');
+    }
+
+    if (Platform.OS === 'android' && !cleanUri.startsWith('file://') && !cleanUri.startsWith('content://')) {
+      cleanUri = `file://${cleanUri}`;
+    }
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Accept', 'application/json');
+      // KHÔNG set Content-Type
+
+      xhr.onload = () => {
+        console.log('[OCR] Response Status:', xhr.status);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            resolve(res.data || res);
+          } catch (e) {
+            reject(new Error('JSON Parse Error'));
+          }
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err.message || `Lỗi server ${xhr.status}`));
+          } catch (e) {
+            reject(new Error(`Server error ${xhr.status}`));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network Error - Kiểm tra kết nối mạng'));
+
       const formData = new FormData();
+      const filename = cleanUri.split('/').pop() || 'invoice.jpg';
       
-      // Handle different URI formats
-      const uri = Platform.OS === 'android' ? fileUri : fileUri.replace('file://', '');
-      
+      // ĐÂY LÀ PHẦN QUAN TRỌNG NHẤT ĐỂ TRÁNH LỖI "FIELD VALUE TOO LONG"
       formData.append('file', {
-        uri: uri,
+        uri: cleanUri,
+        name: filename,
         type: 'image/jpeg',
-        name: 'invoice.jpg',
       } as any);
 
-      console.log('[OCR] Sending multipart scan request for:', uri);
-
-      const response = await this.apiClient.post(API_ENDPOINTS.OCR_SCAN, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        // Important for large file uploads
-        timeout: 60000, 
-      });
-      
-      return this.unwrapResponse<OcrJob>(response.data);
-    } catch (error: any) {
-      console.error('[OCR] scanInvoice error:', error);
-      throw this.handleError(error);
-    }
+      console.log('[OCR] Sending file:', filename);
+      xhr.send(formData);
+    });
   }
 
   async getJob(jobId: string): Promise<OcrJob> {
-    try {
-      const response = await this.apiClient.get(API_ENDPOINTS.OCR_JOB(jobId));
-      return this.unwrapResponse<OcrJob>(response.data);
-    } catch (error: any) {
-      throw this.handleError(error);
-    }
-  }
-
-  private handleError(error: any): Error {
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      'Có lỗi xảy ra. Vui lòng thử lại.';
-    return new Error(message);
+    const response = await this.apiClient.get(API_ENDPOINTS.OCR_JOB(jobId));
+    return response.data?.data || response.data;
   }
 }
 

@@ -95,17 +95,49 @@ class BudgetRepository {
       }
   }
 
-  async getBudgetProgress(id: string): Promise<BudgetWithProgress> {
+  async getBudgetProgress(id: string): Promise<BudgetWithProgress | null> {
       try {
         const response = await this.apiClient.get(API_ENDPOINTS.GET_BUDGET_PROGRESS(id));
-        return this.unwrapResponse<BudgetWithProgress>(response.data);
-      } catch (error) { 
-          // Return valid structure with 0 progress if fail
-           return {
-               id, userId: 'u1', name: 'Unknown', limitAmount: 0,
-               startDate: '', endDate: '', category: 'other',
-               progress: { totalSpent: 0, remaining: 0, percentage: 0, status: 'SAFE' }
-           };
+        const progressData = this.unwrapResponse<BudgetWithProgress>(response.data);
+
+        // FE Patch: Ensure actual spending is reflected even if back-end core calculation is lagging
+        if (progressData && progressData.category) {
+            const actualSpent = await this.manualCalculateSpent(
+                progressData.category, 
+                progressData.startDate, 
+                progressData.endDate
+            );
+            
+            // If manual calculation is higher or backend is 0, prioritize manual
+            if (actualSpent > (progressData.progress?.totalSpent || 0)) {
+                const limit = Number(progressData.limitAmount);
+                const percentage = (actualSpent / limit) * 100;
+                progressData.progress = {
+                    totalSpent: actualSpent,
+                    remaining: Math.max(0, limit - actualSpent),
+                    percentage: parseFloat(percentage.toFixed(2)),
+                    status: actualSpent > limit ? 'EXCEEDED' : actualSpent > limit * 0.8 ? 'WARNING' : 'SAFE'
+                };
+            }
+        }
+        return progressData;
+      } catch (error: any) { 
+          return null; 
+      }
+  }
+
+  /**
+   * Manual calculation helper to bypass backend bugs
+   */
+  private async manualCalculateSpent(category: string, from?: string, to?: string): Promise<number> {
+      try {
+          const statsRes = await this.apiClient.get(API_ENDPOINTS.GET_EXPENSE_STATS, {
+              params: { from, to, category }
+          });
+          const stats = statsRes.data?.data || statsRes.data;
+          return Number(stats?.total || stats?.totalAmount || 0);
+      } catch {
+          return 0;
       }
   }
 
@@ -114,41 +146,41 @@ class BudgetRepository {
    */
   async getAllBudgetsWithProgress(): Promise<BudgetWithProgress[]> {
     try {
-      const budgets = await this.getBudgets(); // This now returns dummy if fail
-      
-      // If we are in demo mode (using dummy budgets), we need dummy progress too
-      // Check if budgets are dummy by checking IDs or just catch errors in getting progress
+      const budgets = await this.getBudgets(); 
       
       const budgetsWithProgress = await Promise.all(
         budgets.map(async (budget) => {
-          try {
-             // Try to fetch real progress, but mostly won't work if getBudgets failed
-             // Unless getBudgets worked and getBudgetProgress fails
-             // If getBudgets returned dummy '1', '2', getBudgetProgress('1') will fail on real server
-             if(budget.id === '1' || budget.id === '2') throw new Error("Demo ID");
-             
-             return await this.getBudgetProgress(budget.id);
-          } catch {
-            // Fake progress for dummy data
-            let spent = 0;
-            if (budget.category === 'food') spent = 3500000; // 70%
-            if (budget.category === 'transport') spent = 200000; // 20%
-            
+          // If it's a dummy budget, apply dummy progress
+          if(budget.id === '1' || budget.id === '2') {
+            let spent = budget.id === '1' ? 3500000 : 200000;
             const percentage = (spent / budget.limitAmount) * 100;
-            let status: 'SAFE' | 'WARNING' | 'EXCEEDED' = 'SAFE';
-            if (percentage > 100) status = 'EXCEEDED';
-            else if (percentage > 80) status = 'WARNING';
-
             return {
               ...budget,
               progress: {
                 totalSpent: spent,
                 remaining: budget.limitAmount - spent,
-                percentage,
-                status,
+                percentage: parseFloat(percentage.toFixed(2)),
+                status: percentage > 100 ? 'EXCEEDED' : percentage > 80 ? 'WARNING' : 'SAFE',
               },
-            };
+            } as BudgetWithProgress;
           }
+
+          const progressData = await this.getBudgetProgress(budget.id);
+          if (progressData && progressData.progress) {
+             return progressData;
+          }
+          
+          // Hard fallback for list view
+          const manualSpent = await this.manualCalculateSpent(budget.category || '', budget.startDate, budget.endDate);
+          return {
+            ...budget,
+            progress: { 
+              totalSpent: manualSpent, 
+              remaining: Math.max(0, budget.limitAmount - manualSpent), 
+              percentage: budget.limitAmount > 0 ? parseFloat(((manualSpent / budget.limitAmount) * 100).toFixed(2)) : 0, 
+              status: manualSpent > budget.limitAmount ? 'EXCEEDED' : 'SAFE' 
+            }
+          } as BudgetWithProgress;
         }),
       );
       return budgetsWithProgress;

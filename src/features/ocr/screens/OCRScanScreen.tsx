@@ -25,6 +25,7 @@ import {
   useCameraDevice, 
   useCameraPermission,
   useCameraFormat,
+  useCodeScanner,
 } from 'react-native-vision-camera';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
@@ -43,63 +44,52 @@ const OCRScanScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   const authContext = useContext(AuthContext);
-  const { scanInvoice, getJob } = useOcr(authContext?.userToken || null);
+  const { scanInvoice, refreshJobStatus } = useOcr(authContext?.userToken || null);
   const { setCurrentOcrResult } = useOCR();
 
   // Camera State
   const device = useCameraDevice('back');
   
-  // Select High Quality format (720p - 1080p) for best OCR results
-  // Server is now configured to accept 50MB payload, so we don't need to worry about size.
-  const format = React.useMemo(() => {
-     if (!device?.formats) return undefined;
-     
-     // Filter for 720p or 1080p formats (Width between 1080 and 1920)
-     const candidates = device.formats.filter(f => 
-       f.photoWidth >= 1080 && f.photoWidth <= 1920
-     );
-     
-     if (candidates.length > 0) {
-       // Pick the best quality among candidates (highest resolution)
-       return candidates.sort((a, b) => (b.photoWidth * b.photoHeight) - (a.photoWidth * a.photoHeight))[0];
-     }
-     
-     // Fallback: Pick the highest resolution available overall
-     return [...device.formats].sort((a, b) => (b.photoWidth * b.photoHeight) - (a.photoWidth * a.photoHeight))[0];
-  }, [device?.formats]);
+  // Simpler format selection to avoid hardware issues on some Android devices
+  const format = useCameraFormat(device, [
+    { photoResolution: 'max' },
+    { fps: 30 }
+  ]);
 
   const { hasPermission, requestPermission } = useCameraPermission();
   const camera = useRef<Camera>(null);
   const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [isActive, setIsActive] = useState(true);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const isTakingPhotoRef = useRef(false);
 
   // App State
-  const [fileUrl, setFileUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   // Animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
-  // Helper inside component
-  const convertFileToBase64 = async (uri: string): Promise<string> => {
-     if (uri.startsWith('data:')) return uri;
-     
-     try {
-       // Use RNFS to read file as base64 directly
-       const filePath = uri.replace('file://', ''); // RNFS usually needs path without schema on Android
-       const base64 = await RNFS.readFile(filePath, 'base64');
-       return `data:image/jpeg;base64,${base64}`;
-     } catch (e) {
-       console.error("Conversion error", e);
-       // Fallback: try reading with file:// prefix if first attempt failed
-       try {
-          const base64 = await RNFS.readFile(uri, 'base64');
-          return `data:image/jpeg;base64,${base64}`;
-       } catch (e2) {
-          throw new Error('Cannot convert image: ' + (e as any).message);
-       }
-     }
+  // QR Code Scanner Logic
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr', 'ean-13'],
+    onCodeScanned: (codes) => {
+      if (codes.length > 0 && !isScanning && !capturedImage) {
+        const value = codes[0].value;
+        if (value) {
+          console.log('[QR] Scanned code:', value);
+          handleQRCode(value);
+        }
+      }
+    }
+  });
+
+  const handleQRCode = async (data: string) => {
+    // If it looks like a financial QR (VietQR / VNPay), auto-capture
+    if (data.startsWith('000201') || data.includes('|')) {
+      console.log('[QR] Detected financial QR, auto-capturing...');
+      takePhoto();
+    }
   };
 
   // Hide TabBar when focused
@@ -130,19 +120,14 @@ const OCRScanScreen: React.FC = () => {
     }
   }, [hasPermission]);
 
-  // Animation Loop
-  useEffect(() => {
-    startScanAnimation();
-  }, [isScanning]);
+  // Animation Ref
+  const scanAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Active state management
-  useEffect(() => {
-    setIsActive(isFocused && !capturedImage);
-  }, [isFocused, capturedImage]);
-
-  const startScanAnimation = () => {
+  const startScanAnimation = useCallback(() => {
     if (isScanning || !capturedImage) {
-      Animated.loop(
+      if (scanAnimRef.current) scanAnimRef.current.stop();
+
+      scanAnimRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(scanLineAnim, {
             toValue: SCAN_SIZE,
@@ -155,31 +140,59 @@ const OCRScanScreen: React.FC = () => {
             useNativeDriver: true,
           }),
         ])
-      ).start();
+      );
+      scanAnimRef.current.start();
+    } else {
+      if (scanAnimRef.current) {
+        scanAnimRef.current.stop();
+        scanAnimRef.current = null;
+      }
+      scanLineAnim.setValue(0);
     }
-  };
+  }, [isScanning, capturedImage]);
+
+  // Animation Control
+  useEffect(() => {
+    startScanAnimation();
+    return () => {
+      if (scanAnimRef.current) scanAnimRef.current.stop();
+    };
+  }, [startScanAnimation]);
+
+  // Active state management: Keep camera alive while focused 
+  // to avoid "Camera is closed" errors during capture transitions.
+  useEffect(() => {
+    setIsActive(isFocused);
+  }, [isFocused]);
 
 
   const takePhoto = async () => {
-    if (camera.current) {
+    if (camera.current && isCameraReady && isActive && !isTakingPhotoRef.current) {
       try {
+        isTakingPhotoRef.current = true;
+        console.log('[OCR] Taking photo...');
+        
         const photo = await camera.current.takePhoto({
-          flash: flash,
-          enableShutterSound: true,
+          flash: device?.hasFlash ? flash : 'off',
+          enableShutterSound: false,
         });
         
-        console.log(`[OCR] Captured photo: ${photo.width}x${photo.height}, path: ${photo.path}`);
+        const path = Platform.OS === 'android' ? `file://${photo.path}` : photo.path;
+        console.log('[OCR] Photo captured successfully:', path);
         
-        const path = `file://${photo.path}`;
         setCapturedImage(path);
-        
-        // Auto scan immediately
-        handleScan(path);
-      } catch (e) {
-// ...
+        // We handleScan AFTER setting captured image to let UI update
+        setTimeout(() => handleScan(path), 100);
+      } catch (e: any) {
         console.error('Failed to take photo:', e);
-        Alert.alert('Lỗi', 'Không thể chụp ảnh.');
+        Alert.alert('Lỗi', `Không thể chụp ảnh: ${e.message || 'vui lòng thử lại'}`);
+      } finally {
+        isTakingPhotoRef.current = false;
       }
+    } else {
+      console.warn('[OCR] Camera not ready or active, or already taking photo', { 
+        isCameraReady, isActive, isTakingPhoto: isTakingPhotoRef.current 
+      });
     }
   };
 
@@ -187,88 +200,85 @@ const OCRScanScreen: React.FC = () => {
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        includeBase64: true,
-        quality: 0.7,
+        quality: 0.8,
       });
 
       if (result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        let uri = asset.uri || '';
-        
-        if (asset.base64) {
-             uri = `data:${asset.type};base64,${asset.base64}`;
-        }
-        
+        const uri = result.assets[0].uri || '';
+        console.log('[OCR Screen] Picked image URI:', uri);
         setCapturedImage(uri);
         handleScan(uri);
       }
     } catch (error) {
-       Alert.alert('Lỗi', 'Không chọn được ảnh');
+       Alert.alert('Lỗi', 'Không thể chọn ảnh từ thư viện');
     }
   };
+
+  const takePhotoNew = takePhoto; // Alias for internal usage if needed
 
   const handleScan = async (uri: string) => {
     try {
       setIsScanning(true);
+      console.log('[OCR Screen] Starting scan...');
       
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Kết nối quá thời gian.')), 60000)
-      );
+      const job = await scanInvoice(uri);
       
-      const job = await Promise.race([
-        scanInvoice(uri),
-        timeoutPromise
-      ]) as any;
-
-      if (!job || !job.id) throw new Error('Không thể tạo công việc OCR');
+      // Nếu job null, lấy lỗi từ state của ViewModel hoặc báo lỗi mặc định
+      if (!job || !job.id) {
+        throw new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra địa chỉ IP.');
+      }
 
       let attempts = 0;
       let currentJob = job;
       
-      // Polling loop
+      // Polling Logic: Kiểm tra trạng thái mỗi 2 giây
       while (attempts < 20) {
         if (currentJob.status === 'completed') {
+          console.log('[OCR Screen] Scan completed successfully');
           setIsScanning(false);
-          const expenseData = currentJob.resultJson?.expenseData || {};
+          
+          const result = currentJob.resultJson as any;
+          const expenseData = result?.expenseData || {};
           
           const jobData = {
             id: String(currentJob.id || ''),
             status: 'completed',
-            fileUrl: uri, // Critical: Pass original image path to Result screen for saving
+            fileUrl: currentJob.fileUrl,
             resultJson: {
               expenseData: {
                 amount: Number(expenseData.amount) || 0,
                 category: String(expenseData.category || 'other'),
-                description: String(expenseData.description || 'Chi tiêu OCR').substring(0, 100),
+                description: String(expenseData.description || 'Hóa đơn OCR').substring(0, 100),
                 spentAt: expenseData.spentAt || new Date().toISOString(),
                 confidence: Number(expenseData.confidence) || 0,
                 source: expenseData.source === 'qr' ? 'qr' : 'ocr',
+                ocrJobId: currentJob.id,
               },
             },
           };
           
-          setCurrentOcrResult(jobData);
+          setCurrentOcrResult(jobData as any);
           navigation.navigate('OCRResult');
-          // Reset state after navigation
-          setTimeout(() => {
-             setCapturedImage(null);
-          }, 1000);
           return;
         }
 
-        if (currentJob.status === 'failed') throw new Error('OCR thất bại');
+        if (currentJob.status === 'failed') throw new Error('Hệ thống không nhận diện được hóa đơn này');
 
-        await new Promise<void>(r => setTimeout(r, 2000));
-        try {
-          currentJob = await getJob(job.id);
-        } catch (e) { }
+        // Chờ 2 giây
+        await new Promise<void>(resolve => setTimeout(resolve, 2000));
+        
+        const updated = await refreshJobStatus(job.id);
+        if (!updated) continue;
+        currentJob = updated;
+
+        console.log(`[OCR Screen] Polling: ${currentJob.status}`);
         attempts++;
       }
-      throw new Error('OCR timeout');
+      throw new Error('Hết thời gian chờ. Bạn có thể kiểm tra kết quả trong lịch sử sau.');
+      
     } catch (error: any) {
       setIsScanning(false);
-      Alert.alert('Lỗi', error.message || 'Thử lại sau');
-      // Allow retry
+      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra trong quá trình quét');
     }
   };
 
@@ -296,12 +306,7 @@ const OCRScanScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
-      {/* Camera View or Captured Image */}
-      {capturedImage ? (
-         <ImageBackground source={{uri: capturedImage}} style={styles.FullScreen} resizeMode="cover">
-            <View style={styles.overlay} />
-         </ImageBackground>
-      ) : (
+      <View style={styles.cameraWrapper}>
          <Camera
             ref={camera}
             style={styles.FullScreen}
@@ -310,10 +315,28 @@ const OCRScanScreen: React.FC = () => {
             isActive={isActive}
             photo={true}
             enableZoomGesture
+            codeScanner={codeScanner}
+            onInitialized={() => {
+               console.log('[Camera] Initialized');
+               setIsCameraReady(true);
+            }}
+            onError={(e) => {
+               console.error('[Camera] Session Error:', e);
+               // Handle session closure by attempting to restart
+               if (e.message.includes('closed')) {
+                  setIsActive(false);
+                  setTimeout(() => setIsActive(true), 1000);
+               }
+            }}
          />
-      )}
+         
+         {capturedImage && (
+            <ImageBackground source={{uri: capturedImage}} style={[styles.FullScreen, { zIndex: 5 }]} resizeMode="cover">
+               <View style={styles.overlay} />
+            </ImageBackground>
+         )}
+      </View>
 
-      {/* Header Controls */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <Ionicons name="close" size={24} color="#FFF" />
@@ -329,7 +352,6 @@ const OCRScanScreen: React.FC = () => {
         {capturedImage && <View style={{width: 40}} />}
       </View>
 
-      {/* Scanner Overlay */}
       <View style={styles.scannerContainer}>
         <View style={styles.scannerFrame}>
            <View style={[styles.corner, styles.tl]} />
@@ -358,11 +380,10 @@ const OCRScanScreen: React.FC = () => {
             )}
         </View>
         <Text style={styles.guideText}>
-           {isScanning ? 'Vui lòng đợi giây lát...' : 'Di chuyển hóa đơn vào khung'}
+           {isScanning ? 'Vui lòng đợi giây lát...' : 'Di chuyển hóa đơn/QR vào khung'}
         </Text>
       </View>
 
-      {/* Bottom Controls */}
       <View style={styles.bottomBar}>
          {!capturedImage ? (
             <View style={styles.captureControls}>
@@ -415,13 +436,17 @@ const styles = StyleSheet.create({
      color: '#FFF', 
      fontWeight: 'bold'
   },
+  cameraWrapper: {
+     flex: 1,
+     ...StyleSheet.absoluteFillObject,
+  },
   FullScreen: {
      ...StyleSheet.absoluteFillObject,
      backgroundColor: '#000'
   },
   overlay: {
      ...StyleSheet.absoluteFillObject,
-     backgroundColor: 'rgba(0,0,0,0.5)'
+     backgroundColor: 'rgba(0,0,0,0.3)'
   },
   header: {
     position: 'absolute',
@@ -499,11 +524,11 @@ const styles = StyleSheet.create({
      bottom: 0,
      left: 0, 
      right: 0,
-     height: 150, // Increase height
+     height: 150,
      backgroundColor: 'rgba(0,0,0,0.6)',
      justifyContent: 'center',
-     paddingBottom: 40, // Add padding bottom
-     zIndex: 99999, // Force on top
+     paddingBottom: 40,
+     zIndex: 99999,
   },
   captureControls: {
      flexDirection: 'row',

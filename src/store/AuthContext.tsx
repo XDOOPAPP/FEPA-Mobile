@@ -4,10 +4,14 @@ import { AuthContextType, User } from '../types/auth';
 import { getMeApi, refreshTokenApi } from '../features/auth/authService';
 import axiosInstance from '../api/axiosInstance';
 import { API_ENDPOINTS } from '../constants/api';
+import { notificationService } from '../core/services/NotificationService';
+import { database } from '../database';
 
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
 );
+
+const DEMO_PREMIUM_KEY = 'demo_premium_enabled';
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userToken, setUserToken] = useState<string | null>(null);
@@ -15,9 +19,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
+  const [isPremiumServer, setIsPremiumServer] = useState(false);
+  const [isDemoPremium, setIsDemoPremium] = useState(false);
   const [premiumExpiry, setPremiumExpiry] = useState<string | null>(null);
 
+  // Premium is true if either server says so OR demo mode is active
+  const isPremium = isPremiumServer || isDemoPremium;
+  
   // Computed value
   const isAuthenticated = !!userToken;
 
@@ -32,25 +40,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       AsyncStorage.removeItem('refreshToken'),
       AsyncStorage.removeItem('userData'),
     ]);
+
+    // Xóa local database (WatermelonDB) để tránh hiển thị data của user khác
+    try {
+      await database.write(async () => {
+        await database.unsafeResetDatabase();
+      });
+      console.log('[AuthContext] Local database cleared on logout');
+    } catch (error) {
+      console.error('[AuthContext] Failed to clear local database:', error);
+    }
   }, []);
 
-  // Helper function to check premium status
+  // Helper function to check premium status from server
   const checkPremiumStatus = async () => {
     try {
       const { data } = await axiosInstance.get(API_ENDPOINTS.SUBSCRIPTION_CURRENT);
       if (data && data.status === 'ACTIVE') {
-        setIsPremium(true);
+        setIsPremiumServer(true);
         setPremiumExpiry(data.endDate);
       } else {
-        setIsPremium(false);
+        setIsPremiumServer(false);
         setPremiumExpiry(null);
       }
     } catch (error) {
        // Silent error or fallback
        console.log('Check premium status failed (possibly free user)');
-       setIsPremium(false);
+       setIsPremiumServer(false);
+    }
+    
+    // Also load demo premium status from local storage
+    try {
+      const demoStatus = await AsyncStorage.getItem(DEMO_PREMIUM_KEY);
+      setIsDemoPremium(demoStatus === 'true');
+    } catch (e) {
+      console.log('Failed to load demo premium status');
     }
   };
+
+  // Activate demo premium mode (local only, no backend)
+  const activateDemoPremium = useCallback(async () => {
+    setIsDemoPremium(true);
+    await AsyncStorage.setItem(DEMO_PREMIUM_KEY, 'true');
+    console.log('[AuthContext] Demo Premium ACTIVATED');
+  }, []);
+
+  // Deactivate demo premium mode
+  const deactivateDemoPremium = useCallback(async () => {
+    setIsDemoPremium(false);
+    await AsyncStorage.removeItem(DEMO_PREMIUM_KEY);
+    console.log('[AuthContext] Demo Premium DEACTIVATED');
+  }, []);
 
   // Load user info từ API
   const loadUserInfo = useCallback(async () => {
@@ -232,25 +272,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isAuthenticated,
     isPremium,
     premiumExpiry,
+    isDemoPremium,
     login,
     logout,
     loadUserInfo,
     refreshAuthToken,
     checkTokenValidity,
     updateUser,
+    activateDemoPremium,
+    deactivateDemoPremium,
   };
 
-  // Socket Connection Management
+  // notification (Firebase) Management
   useEffect(() => {
+    let unsubscribeForeground: (() => void) | undefined;
+
     if (userToken) {
-      // Initialize socket with token
-      const { socketService } = require('../core/services/SocketService');
-      socketService.init(userToken);
-    } else {
-      // Disconnect socket on logout
-      const { socketService } = require('../core/services/SocketService');
-      socketService.disconnect();
+      console.log('[AuthContext] Initializing NotificationService');
+      // Request permission and get token
+      notificationService.requestUserPermission().catch(err => {
+        console.error('[AuthContext] Notification permission error:', err);
+      });
+      
+      // Listen for foreground messages
+      unsubscribeForeground = notificationService.listenToForegroundNotifications();
     }
+
+    return () => {
+      if (unsubscribeForeground) {
+        unsubscribeForeground();
+      }
+    };
   }, [userToken]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

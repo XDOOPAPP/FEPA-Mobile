@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import LinearGradient from 'react-native-linear-gradient';
 import {
   View,
   TextInput,
@@ -83,7 +84,10 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerGradient}>
+        <LinearGradient
+          colors={Colors.primaryGradient}
+          style={styles.headerGradient}
+        >
           <TouchableOpacity 
             style={styles.backButtonTop}
             onPress={() => navigation.goBack()}
@@ -91,10 +95,15 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
+            <View style={styles.logoBox}>
+               <View style={styles.logoInner}>
+                  <Text style={styles.logoText}>FE</Text>
+               </View>
+            </View>
             <Text style={styles.logo}>FEPA</Text>
-            <Text style={styles.subtitle}>Quản lý tài chính thông minh</Text>
+            <Text style={styles.subtitle}>Cố vấn tài chính AI của bạn</Text>
           </View>
-        </View>
+        </LinearGradient>
 
         <GlassCard style={styles.formCard}>
           <Text style={styles.formTitle}>Quên mật khẩu</Text>
@@ -166,14 +175,44 @@ const styles = StyleSheet.create({
   headerContent: {
     alignItems: 'center',
   },
+  logoBox: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    marginBottom: Spacing.sm,
+  },
+  logoInner: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#0EA5E9',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   logo: {
     ...Typography.h1,
     color: '#FFF',
+    fontSize: 28,
+    fontWeight: '800',
     marginBottom: Spacing.xs,
   },
   subtitle: {
     ...Typography.body,
     color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
   },
   formCard: {
     marginTop: -Spacing.xxl,

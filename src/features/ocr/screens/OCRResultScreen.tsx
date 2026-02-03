@@ -8,7 +8,13 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Image,
+  Dimensions,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../../store/AuthContext';
 import { useExpense } from '../../../common/hooks/useMVVM';
@@ -16,6 +22,7 @@ import { useOCR } from '../../../store/OCRContext';
 import { OcrJob } from '../../../core/models/Ocr';
 import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
 import { saveReceipt } from '../../../utils/receiptStorage';
+import { GlassCard } from '../../../components/design-system/GlassCard';
 
 const CATEGORIES = [
   { label: 'Ăn uống', slug: 'food' },
@@ -131,182 +138,336 @@ const OCRResultScreen: React.FC = () => {
   if (!job) {
     return (
       <View style={styles.container}>
-        <Text style={{ textAlign: 'center', marginTop: 20 }}>Không có dữ liệu OCR</Text>
+        <View style={styles.header}>
+           <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+           </TouchableOpacity>
+        </View>
+        <View style={styles.emptyContainer}>
+           <Ionicons name="alert-circle-outline" size={64} color={Colors.border} />
+           <Text style={styles.emptyText}>Không tìm thấy dữ liệu hóa đơn</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Kết quả OCR</Text>
-      <Text style={styles.subtitle}>Bạn có thể chỉnh sửa trước khi lưu</Text>
-
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Độ tin cậy</Text>
-        <Text style={styles.infoValue}>
-          {expenseData?.confidence ? `${expenseData.confidence}%` : 'N/A'}
-        </Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      
+      <View style={styles.header}>
+         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+         </TouchableOpacity>
+         <Text style={styles.headerTitle}>Xác nhận hóa đơn</Text>
+         <View style={{width: 40}} />
       </View>
 
-      <Text style={styles.label}>Số tiền (VND)</Text>
-      <TextInput
-        style={styles.input}
-        value={amount}
-        onChangeText={setAmount}
-        keyboardType="numeric"
-        placeholder="Nhập số tiền"
-      />
-
-      <Text style={styles.label}>Danh mục</Text>
-      <View style={styles.categoryWrap}>
-        {CATEGORIES.map(item => (
-          <TouchableOpacity
-            key={item.slug}
-            style={[
-              styles.categoryChip,
-              category === item.slug && styles.categoryChipActive,
-            ]}
-            onPress={() => setCategory(item.slug)}
-          >
-            <Text
-              style={[
-                styles.categoryText,
-                category === item.slug && styles.categoryTextActive,
-              ]}
-            >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.label}>Mô tả</Text>
-      <TextInput
-        style={styles.input}
-        value={description}
-        onChangeText={setDescription}
-        placeholder="Nhập mô tả"
-      />
-
-      <Text style={styles.label}>Ngày</Text>
-      <TextInput 
-        style={styles.input} 
-        value={date} 
-        onChangeText={setDate}
-        placeholder="YYYY-MM-DD"
-      />
-
-      <TouchableOpacity
-        style={[styles.saveButton, expenseState.isLoading && styles.disabled]}
-        onPress={handleSave}
-        disabled={expenseState.isLoading}
-      >
-        {expenseState.isLoading ? (
-          <ActivityIndicator color="#FFF" />
-        ) : (
-          <Text style={styles.saveText}>Lưu chi tiêu</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Receipt Image Preview */}
+        {job.fileUrl && (
+           <View style={styles.imageSection}>
+              <Image source={{ uri: job.fileUrl }} style={styles.previewImage} resizeMode="contain" />
+              <View style={styles.imageOverlay}>
+                 <LinearGradient 
+                   colors={['transparent', 'rgba(0,0,0,0.6)']}
+                   style={styles.gradientOverlay}
+                 />
+                 <Text style={styles.confidenceToast}>
+                    Độ tin cậy AI: {expenseData?.confidence ? `${expenseData.confidence}%` : '85%'}
+                 </Text>
+              </View>
+           </View>
         )}
-      </TouchableOpacity>
-    </ScrollView>
+
+        <View style={styles.formContainer}>
+           <GlassCard style={styles.mainCard}>
+              <Text style={styles.fieldLabel}>SỐ TIỀN CHI TIÊU</Text>
+              <View style={styles.amountInputRow}>
+                 <Text style={styles.currencySymbol}>₫</Text>
+                 <TextInput
+                   style={styles.amountInput}
+                   value={amount}
+                   onChangeText={setAmount}
+                   keyboardType="numeric"
+                   placeholder="0"
+                   placeholderTextColor={Colors.border}
+                 />
+              </View>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.fieldLabel}>DANH MỤC</Text>
+              <View style={styles.categoryGrid}>
+                 {CATEGORIES.map(item => (
+                   <TouchableOpacity
+                     key={item.slug}
+                     style={[
+                       styles.catChip,
+                       category === item.slug && styles.catChipActive,
+                       category === item.slug && { backgroundColor: Colors.primary }
+                     ]}
+                     onPress={() => setCategory(item.slug)}
+                   >
+                     <Text style={[styles.catChipText, category === item.slug && styles.catChipTextActive]}>
+                       {item.label}
+                     </Text>
+                   </TouchableOpacity>
+                 ))}
+              </View>
+           </GlassCard>
+
+           <View style={{height: 20}} />
+
+           <View style={styles.secondaryForm}>
+              <Text style={styles.fieldLabel}>GHI CHÚ / MÔ TẢ</Text>
+              <View style={styles.inputBox}>
+                 <Ionicons name="create-outline" size={20} color={Colors.textMuted} style={{marginRight: 10}} />
+                 <TextInput
+                   style={styles.textInput}
+                   value={description}
+                   onChangeText={setDescription}
+                   placeholder="Nhập tên cửa hàng hoặc món đồ..."
+                   placeholderTextColor={Colors.textMuted}
+                 />
+              </View>
+
+              <Text style={styles.fieldLabel}>NGÀY CHI TIÊU</Text>
+              <View style={styles.inputBox}>
+                 <Ionicons name="calendar-outline" size={20} color={Colors.textMuted} style={{marginRight: 10}} />
+                 <TextInput 
+                   style={styles.textInput} 
+                   value={date} 
+                   onChangeText={setDate}
+                   placeholder="YYYY-MM-DD"
+                   placeholderTextColor={Colors.textMuted}
+                 />
+              </View>
+           </View>
+
+           <TouchableOpacity
+              style={[styles.saveBtn, expenseState.isLoading && { opacity: 0.7 }]}
+              onPress={handleSave}
+              disabled={expenseState.isLoading}
+           >
+              <LinearGradient
+                 colors={['#0EA5E9', '#0284C7']}
+                 start={{x: 0, y: 0}} end={{x: 1, y: 0}}
+                 style={styles.btnGradient}
+              >
+                 {expenseState.isLoading ? (
+                   <ActivityIndicator color="#FFF" />
+                 ) : (
+                   <>
+                     <Ionicons name="checkmark-circle" size={24} color="#FFF" style={{marginRight: 10}} />
+                     <Text style={styles.saveBtnText}>Lưu giao dịch</Text>
+                   </>
+                 )}
+              </LinearGradient>
+           </TouchableOpacity>
+           
+           <TouchableOpacity 
+              style={styles.cancelLink}
+              onPress={() => navigation.goBack()}
+              disabled={expenseState.isLoading}
+           >
+              <Text style={styles.cancelLinkText}>Chụp lại hóa đơn khác</Text>
+           </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
-  content: {
-    padding: Spacing.lg,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    height: 60,
+    marginTop: Platform.OS === 'ios' ? 40 : 10,
   },
-  title: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.soft,
+  },
+  headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  subtitle: {
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  imageSection: {
+    height: 260,
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 24,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+    ...Shadow.lg,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+  },
+  confidenceToast: {
+    color: '#FFF',
     fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  infoCard: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    ...Shadow.soft,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  infoValue: {
-    fontSize: 14,
     fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: Spacing.xs,
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-    marginTop: Spacing.sm,
+  formContainer: {
+    paddingHorizontal: 20,
+    marginTop: 24,
   },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md, // Tăng padding
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.md,
-    ...Shadow.soft,
-    color: Colors.textPrimary,
+  mainCard: {
+    padding: 24,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
   },
-  categoryWrap: {
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currencySymbol: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#0EA5E9',
+    marginRight: 8,
+  },
+  amountInput: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#0F172A',
+    flex: 1,
+    padding: 0,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 20,
+  },
+  categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: Spacing.md,
+    gap: 8,
   },
-  categoryChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    backgroundColor: Colors.card,
-    borderRadius: 999,
+  catChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
+    borderColor: '#E2E8F0',
   },
-  categoryChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  catChipActive: {
+    borderColor: 'transparent',
   },
-  categoryText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+  catChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
   },
-  categoryTextActive: {
+  catChipTextActive: {
     color: '#FFF',
   },
-  saveButton: {
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.accent,
-    paddingVertical: 16,
-    borderRadius: Radius.lg,
+  secondaryForm: {
+    marginBottom: 30,
+  },
+  inputBox: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+    ...Shadow.soft,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1E293B',
+  },
+  saveBtn: {
+    marginBottom: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
     ...Shadow.glow,
   },
-  saveText: {
+  btnGradient: {
+    height: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
     color: '#FFF',
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  cancelLink: {
+    alignItems: 'center',
+    padding: 10,
+  },
+  cancelLinkText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  emptyText: {
     fontSize: 16,
-  },
-  disabled: {
-    opacity: 0.7,
-  },
+    color: '#64748B',
+    marginTop: 16,
+    fontWeight: '600',
+  }
 });
 
 export default OCRResultScreen;

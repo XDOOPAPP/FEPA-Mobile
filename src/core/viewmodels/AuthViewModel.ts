@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+// import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import auth from '@react-native-firebase/auth';
 import { useBaseViewModel, ViewModelState } from './BaseViewModel';
 import { LoginRequest, LoginResponse, User } from '../models/User';
@@ -54,8 +54,9 @@ export const useAuthViewModel = () => {
           accessToken: response.accessToken ?? (authToken || response.token),
         };
       } catch (error: any) {
-        setError(error.message || 'Login failed');
-        throw error;
+        const errorMsg = error?.message || error?.response?.data?.message || 'Login failed';
+        setError(errorMsg);
+        throw new Error(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -63,13 +64,16 @@ export const useAuthViewModel = () => {
     [setLoading, setError, setSuccess, clearMessages],
   );
 
+  /*
   // Configure Google Signin
   useEffect(() => {
     GoogleSignin.configure({
       webClientId: 'YOUR_WEB_CLIENT_ID', // TODO: Get this from google-services.json or .env
     });
   }, []);
+  */
 
+  /*
   // Login with Google
   const loginWithGoogle = useCallback(async () => {
     setLoading(true);
@@ -115,6 +119,7 @@ export const useAuthViewModel = () => {
       setLoading(false);
     }
   }, [setLoading, setError, setSuccess, clearMessages]);
+  */
 
   // Register
   const register = useCallback(
@@ -130,8 +135,9 @@ export const useAuthViewModel = () => {
         setSuccess('OTP sent to your email');
         return response;
       } catch (error: any) {
-        setError(error.message || 'Registration failed');
-        throw error;
+        const errorMsg = error?.message || error?.response?.data?.message || 'Registration failed';
+        setError(errorMsg);
+        throw new Error(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -164,8 +170,16 @@ export const useAuthViewModel = () => {
           accessToken: response.accessToken ?? (authToken || response.token),
         };
       } catch (error: any) {
-        setError(error.message || 'OTP verification failed');
-        throw error;
+        let finalError = error;
+        // Handle specific 400 bad request for invalid OTP
+        if (error.response?.status === 400 || error.message?.includes('Invalid or expired OTP')) {
+          const msg = 'Mã OTP không đúng hoặc đã hết hạn.';
+          setError(msg);
+          finalError = new Error(msg);
+        } else {
+          setError(error.message || 'OTP verification failed');
+        }
+        throw finalError;
       } finally {
         setLoading(false);
       }
@@ -310,8 +324,15 @@ export const useAuthViewModel = () => {
         setSuccess('Mật khẩu đã được cập nhật thành công');
         return response;
       } catch (error: any) {
-        setError(error.message || 'Failed to reset password');
-        throw error;
+        let finalError = error;
+        if (error.response?.status === 400 || error.message?.includes('Invalid or expired OTP')) {
+           const msg = 'Mã OTP không đúng hoặc đã hết hạn.';
+           setError(msg);
+           finalError = new Error(msg);
+        } else {
+           setError(error.message || 'Failed to reset password');
+        }
+        throw finalError;
       } finally {
         setLoading(false);
       }
@@ -373,8 +394,20 @@ export const useAuthViewModel = () => {
         setSuccess('Profile updated successfully');
         return updatedUser;
       } catch (error: any) {
-        setError(error.message || 'Failed to update profile');
-        throw error;
+        console.log('[AuthViewModel] updateProfile error:', JSON.stringify(error, null, 2));
+        // Parse error message properly
+        let errorMsg = 'Failed to update profile';
+        if (typeof error === 'string') {
+          errorMsg = error;
+        } else if (error?.message && typeof error.message === 'string') {
+          errorMsg = error.message;
+        } else if (error?.response?.data?.message) {
+          errorMsg = typeof error.response.data.message === 'string' 
+            ? error.response.data.message 
+            : JSON.stringify(error.response.data.message);
+        }
+        setError(errorMsg);
+        throw new Error(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -415,6 +448,29 @@ export const useAuthViewModel = () => {
     });
   }, []);
 
+  // Update Avatar URL (after Cloudinary upload)
+  const updateAvatar = useCallback(
+    async (avatarUrl: string) => {
+      setLoading(true);
+      clearMessages();
+      try {
+        const updatedUser = await userRepository.updateAvatar(avatarUrl);
+        setAuthState(prev => ({
+          ...prev,
+          user: { ...prev.user, ...updatedUser },
+        }));
+        setSuccess('Avatar đã được cập nhật');
+        return updatedUser;
+      } catch (error: any) {
+        setError(error.message || 'Không thể cập nhật avatar');
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError, setSuccess, clearMessages],
+  );
+
   return {
     authState,
     login,
@@ -430,9 +486,10 @@ export const useAuthViewModel = () => {
     changePassword,
     getProfile,
     updateProfile,
+    updateAvatar,
     logout,
     clearAuth,
     clearMessages,
-    loginWithGoogle,
+    // loginWithGoogle,
   };
 };

@@ -1,177 +1,69 @@
+import axios from 'axios';
 import { axiosInstance } from '../../api/axiosInstance';
 import { API_ENDPOINTS } from '../../constants/api';
 
-export interface CategorizeExpenseRequest {
-  description: string;
-  amount: number;
-  spentAt?: string;
-  merchantName?: string;
-}
+// --- Interfaces ---
+export interface AssistantChatRequest { message: string; }
+export interface AssistantChatResult { reply: string; }
+export interface CategorizeExpenseRequest { description: string; amount: number; }
+export interface CategorizeExpenseResult { category: string; }
 
-export interface CategorizeExpenseResult {
-  category: string;
-  confidence: number;
-  suggestedCategories: Array<{ category: string; confidence: number }>;
-}
-
-export interface AssistantChatRequest {
-  message: string;
-  context?: string;
-}
-
-export interface AssistantChatResult {
-  reply: string;
-  conversationId?: string;
-  sources?: Array<{ title: string; url: string }>;
-}
-
-export interface BudgetAlertRequest {
-  month: string; // YYYY-MM
-  categories?: string[];
-}
-
-export interface BudgetAlertResult {
-  alerts: Array<{
-    category: string;
-    budget: number;
-    spent: number;
-    alertLevel: 'warning' | 'danger';
-    message: string;
-  }>;
-}
-
-export interface AnomalyDetectionRequest {
-  from: string; // YYYY-MM-DD
-  to: string;   // YYYY-MM-DD
-  categories?: string[];
-}
-
-export interface AnomalyDetectionResult {
-  anomalies: Array<{
-    date: string;
-    category: string;
-    amount: number;
-    expected: number;
-    score: number;
-    description?: string;
-  }>;
-}
-
-export interface PredictSpendingRequest {
-  month: string; // YYYY-MM
-  categories?: string[];
-}
-
-export interface PredictSpendingResult {
-  predictions: Array<{
-    category: string;
-    amount: number;
-    confidence: number;
-  }>;
-}
+// --- Cấu hình Cứu hộ (Fallback) ---
+const FALLBACK_KEY = 'AIzaSyAS5XBYia0bIEPInVou-K5zSqIQ0rQ_dXQ';
+const GOOGLE_API_URL = (model: string) => 
+  `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${FALLBACK_KEY}`;
 
 class AiRepository {
-  private apiClient = axiosInstance;
-
-  async categorizeExpense(
-    payload: CategorizeExpenseRequest,
-  ): Promise<CategorizeExpenseResult> {
+  // 1. Phân loại chi tiêu (Fallback thông minh)
+  async categorizeExpense(payload: CategorizeExpenseRequest): Promise<CategorizeExpenseResult> {
     try {
-      const response = await this.apiClient.post(
-        API_ENDPOINTS.AI_CATEGORIZE,
-        payload,
-      );
-      if (response.data && response.data.data) {
-        return response.data.data as CategorizeExpenseResult;
+      // Ưu tiên Microservice (Hosting)
+      const res = await axiosInstance.post(API_ENDPOINTS.AI_CATEGORIZE, payload);
+      return res.data?.data || res.data;
+    } catch (error) {
+      console.log('⚠️ Backend Categorize failed, using Local AI Fallback...');
+      try {
+        const prompt = `Phân loại: "${payload.description}". Trả về 1 từ slug duy nhất: food, transport, shopping, entertainment, health, utilities.`;
+        const res = await axios.post(GOOGLE_API_URL('gemini-1.5-flash'), {
+          contents: [{ parts: [{ text: prompt }] }]
+        });
+        const category = res.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase() || 'other';
+        return { category: category.includes('food') ? 'food' : category.includes('transport') ? 'transport' : category.includes('shopping') ? 'shopping' : category.includes('health') ? 'health' : category.includes('utilities') ? 'utilities' : 'other' };
+      } catch (e) {
+        return { category: 'other' };
       }
-      throw new Error('Không nhận được kết quả từ AI');
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || 'Có lỗi AI';
-      throw new Error(message);
     }
   }
 
-  async assistantChat(
-    payload: AssistantChatRequest,
-  ): Promise<AssistantChatResult> {
+  // 2. Chat Trợ lý (Sử dụng Microservice trước, lỗi mới dùng Google trực tiếp)
+  async assistantChat(payload: AssistantChatRequest): Promise<AssistantChatResult> {
     try {
-      const response = await this.apiClient.post(
-        API_ENDPOINTS.AI_ASSISTANT_CHAT,
-        payload,
-      );
-      if (response.data && response.data.data) {
-        const rawData = response.data.data;
-        return {
-          reply: rawData.response || rawData.reply || '',
-          conversationId: rawData.conversationId,
-          sources: rawData.sources
-        };
+      // Bước 1: Gọi Microservice trên Hosting
+      const response = await axiosInstance.post(API_ENDPOINTS.AI_ASSISTANT_CHAT, payload);
+      const data = response.data?.data || response.data;
+      if (data?.reply || data?.response) {
+        return { reply: data.reply || data.response };
       }
-      throw new Error('Không nhận được phản hồi từ AI assistant');
+      throw new Error('Server returned empty');
     } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || 'Có lỗi AI';
-      throw new Error(message);
+      console.log('📡 Microservice error, triggering Direct Google AI...');
+      
+      // Bước 2: Google Direct Fallback
+      try {
+        const res = await axios.post(GOOGLE_API_URL('gemini-1.5-flash'), {
+          contents: [{ parts: [{ text: `Bạn là trợ lý tài chính FEPA. Trả lời ngắn gọn tiếng Việt: ${payload.message}` }] }]
+        });
+        return { reply: res.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'AI đang bảo trì.' };
+      } catch (directError: any) {
+        throw new Error('Cả Server và Google đều không phản hồi. Vui lòng kiểm tra kết nối.');
+      }
     }
   }
 
-  async getBudgetAlerts(
-    payload: BudgetAlertRequest,
-  ): Promise<BudgetAlertResult> {
-    try {
-      const response = await this.apiClient.post(
-        API_ENDPOINTS.AI_BUDGET_ALERTS,
-        payload,
-      );
-      if (response.data && response.data.data) {
-        return response.data.data as BudgetAlertResult;
-      }
-      throw new Error('Không nhận được cảnh báo ngân sách từ AI');
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || 'Có lỗi AI';
-      throw new Error(message);
-    }
-  }
-
-  async detectAnomalies(
-    payload: AnomalyDetectionRequest,
-  ): Promise<AnomalyDetectionResult> {
-    try {
-      const response = await this.apiClient.post(
-        API_ENDPOINTS.AI_ANOMALIES,
-        payload,
-      );
-      if (response.data && response.data.data) {
-        return response.data.data as AnomalyDetectionResult;
-      }
-      throw new Error('Không nhận được kết quả bất thường từ AI');
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || 'Có lỗi AI';
-      throw new Error(message);
-    }
-  }
-
-  async predictSpending(
-    payload: PredictSpendingRequest,
-  ): Promise<PredictSpendingResult> {
-    try {
-      const response = await this.apiClient.post(
-        API_ENDPOINTS.AI_PREDICT_SPENDING,
-        payload,
-      );
-      if (response.data && response.data.data) {
-        return response.data.data as PredictSpendingResult;
-      }
-      throw new Error('Không nhận được kết quả dự đoán từ AI');
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || 'Có lỗi AI';
-      throw new Error(message);
-    }
-  }
+  // Skeleton
+  async getBudgetAlerts(p: any): Promise<any> { try { return (await axiosInstance.post(API_ENDPOINTS.AI_BUDGET_ALERTS, p)).data; } catch(e) { return { alerts: [] }; } }
+  async predictSpending(p: any): Promise<any> { try { return (await axiosInstance.post(API_ENDPOINTS.AI_PREDICT_SPENDING, p)).data; } catch(e) { return { predictions: [] }; } }
+  async detectAnomalies(p: any): Promise<any> { try { return (await axiosInstance.post(API_ENDPOINTS.AI_ANOMALIES, p)).data; } catch(e) { return { anomalies: [] }; } }
 }
 
 export const aiRepository = new AiRepository();

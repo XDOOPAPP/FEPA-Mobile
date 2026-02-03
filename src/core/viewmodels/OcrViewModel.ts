@@ -1,63 +1,59 @@
-import { useCallback, useState } from 'react';
-import { useBaseViewModel, ViewModelState } from './BaseViewModel';
+import { useState, useCallback } from 'react';
 import { ocrRepository } from '../repositories/OcrRepository';
 import { OcrJob } from '../models/Ocr';
+import { useBaseViewModel } from './BaseViewModel';
 
-export interface OcrViewModelState extends ViewModelState {
+export interface OcrViewModelState {
   currentJob: OcrJob | null;
+  loading: boolean;
+  error: string | null;
 }
 
-export const useOcrViewModel = (token: string | null) => {
-  const { state, setLoading, setError, clearMessages } = useBaseViewModel();
-  const [ocrState, setOcrState] = useState<OcrViewModelState>({
-    ...state,
-    currentJob: null,
-  });
+export const useOcrViewModel = () => {
+  const { setLoading, setError, state } = useBaseViewModel();
+  const [currentJob, setCurrentJob] = useState<OcrJob | null>(null);
 
-  const syncState = useCallback((updates: Partial<OcrViewModelState>) => {
-    setOcrState(prev => ({ ...prev, ...updates }));
-  }, []);
+  /**
+   * Bắt đầu quét hóa đơn
+   */
+  const scanInvoice = async (fileUri: string) => {
+    setLoading(true);
+    setError(null);
+    setCurrentJob(null);
+    try {
+      const job = await ocrRepository.scanInvoice(fileUri);
+      setCurrentJob(job);
+      return job;
+    } catch (e: any) {
+      setError(e.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const scanInvoice = useCallback(
-    async (fileUrl: string): Promise<OcrJob> => {
-      setLoading(true);
-      clearMessages();
-      try {
-        const job = await ocrRepository.scanInvoice(fileUrl);
-        syncState({ currentJob: job });
-        return job;
-      } catch (error: any) {
-        setError(error.message || 'Failed to scan invoice');
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [token, setLoading, setError, clearMessages, syncState],
-  );
-
-  const getJob = useCallback(
-    async (jobId: string): Promise<OcrJob> => {
-      setLoading(true);
-      clearMessages();
-      try {
-        const job = await ocrRepository.getJob(jobId);
-        syncState({ currentJob: job });
-        return job;
-      } catch (error: any) {
-        setError(error.message || 'Failed to load OCR job');
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [token, setLoading, setError, clearMessages, syncState],
-  );
+  /**
+   * Cập nhật trạng thái job hiện tại
+   */
+  const refreshJobStatus = async (jobId: string) => {
+    try {
+      const updatedJob = await ocrRepository.getJob(jobId);
+      setCurrentJob(updatedJob);
+      return updatedJob;
+    } catch (e) {
+      console.error('[OCR ViewModel] Refresh failed:', e);
+      return null;
+    }
+  };
 
   return {
-    ocrState,
+    state: {
+      ...state,
+      currentJob,
+    },
     scanInvoice,
-    getJob,
-    clearMessages,
+    refreshJobStatus,
+    setLoading,
+    setError,
   };
 };

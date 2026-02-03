@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import DashboardScreen from '../features/dashboard/screens/DashboardScreen';
+import DashboardStack from './DashboardStack';
 import ExpenseNavigator from '../features/expense/navigation/ExpenseNavigator';
 import OCRNavigator from '../features/ocr/navigation/OCRNavigator'; // Smart Scan Navigator
 import PlanningNavigator from '../features/planning/navigation/PlanningNavigator';
@@ -118,15 +118,25 @@ const MainTabNavigator = () => {
       {/* Tab 1: Dashboard */}
       <Tab.Screen 
         name="Dashboard" 
-        component={DashboardScreen} 
+        component={DashboardStack} 
         options={{ title: 'Tổng quan' }} 
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            navigation.navigate('Dashboard', { screen: 'DashboardHome' });
+          },
+        })}
       />
       
-      {/* Tab 2: Transactions (Using Expense Navigator for full stack) */}
+      {/* Tab 2: Transactions */}
       <Tab.Screen 
         name="Transactions" 
         component={ExpenseNavigator} 
         options={{ title: 'Lịch sử' }} 
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            navigation.navigate('Transactions', { screen: 'ExpenseList' });
+          },
+        })}
       />
       
       {/* Tab 3: Smart Scan (Center) */}
@@ -135,9 +145,7 @@ const MainTabNavigator = () => {
         component={OCRNavigator}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
-            // Prevent default action
             e.preventDefault();
-            // Navigate manually
             navigation.navigate('SmartScan');
           },
         })}
@@ -148,14 +156,14 @@ const MainTabNavigator = () => {
         }} 
       />
        
-      {/* Tab 4: Planning (Budgets, Goals, Debts) */}
+      {/* Tab 4: Planning */}
        <Tab.Screen 
         name="Planning" 
         component={PlanningNavigator} 
         options={{ title: 'Kế hoạch' }} 
       />
        
-       {/* Tab 5: Education & Profile */}
+       {/* Tab 5: Profile */}
        <Tab.Screen 
         name="Profile" 
         component={EducationNavigator} 
@@ -175,13 +183,13 @@ const styles = StyleSheet.create({
   },
   glassBackground: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF', // Clean White
+    backgroundColor: '#FFFFFF', 
     borderRadius: Radius.xl,
     height: 70,
     width: '100%',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xs, // Reduced padding to fit 5 items
+    paddingHorizontal: Spacing.xs, 
     ...Shadow.glow,
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -198,7 +206,7 @@ const styles = StyleSheet.create({
     top: -25,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 70, // Fixed width for center
+    width: 70,
   },
   centerButton: {
     width: 60,
@@ -218,7 +226,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryHighlight,
   },
   label: {
-    fontSize: 9, // Smaller font for 5 items
+    fontSize: 9, 
     marginTop: 2,
     fontWeight: 'bold',
     color: Colors.primary,

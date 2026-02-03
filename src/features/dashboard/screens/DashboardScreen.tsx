@@ -1,11 +1,11 @@
 import React, { useCallback, useContext, useMemo, useState, useEffect } from 'react';
-import { View, StyleSheet, Text, ScrollView, Image, TouchableOpacity, StatusBar, DeviceEventEmitter } from 'react-native';
+import { View, StyleSheet, Text, ScrollView, Image, TouchableOpacity, StatusBar, DeviceEventEmitter, Alert } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getUnreadCountApi } from '../../notification/services/NotificationService';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { AuthContext } from '../../../store/AuthContext';
-import { useExpense, useBudget } from '../../../common/hooks/useMVVM';
+import { useExpense, useBudget, useBlog } from '../../../common/hooks/useMVVM';
 import { useAI } from '../../../common/hooks/useAI';
 import { Colors, Radius, Spacing, Typography, Shadow } from '../../../constants/theme';
 import { ExpenseSummaryPeriod } from '../../../core/models/ExpenseSummary';
@@ -14,6 +14,7 @@ import BudgetAlertsWidget from '../components/BudgetAlertsWidget';
 import { GlassCard } from '../../../components/design-system/GlassCard';
 import { StatCard } from '../../../components/design-system/StatCard';
 import FinancialTipsWidget from '../components/FinancialTipsWidget';
+import AnomalyDetectionWidget from '../components/AnomalyDetectionWidget';
 
 const CHART_HEIGHT = 140;
 
@@ -45,6 +46,7 @@ const DashboardScreen: React.FC = () => {
     error: aiError,
     result: aiResult,
   } = useAI(authContext?.userToken || null);
+  const { blogState, getBlogs } = useBlog();
 
   const [predictMonth] = useState(() => {
     const now = new Date();
@@ -82,8 +84,18 @@ const DashboardScreen: React.FC = () => {
     try {
       const res = await predictSpending({ month: predictMonth });
       setPredictResult(res);
-    } catch (err) {
+    } catch (err: any) {
       setPredictResult(null);
+      if (err.message?.includes('Premium') || err.response?.status === 403) {
+         Alert.alert(
+           'Yêu cầu Premium', 
+           'Tính năng dự báo chi tiêu bằng AI chỉ dành cho thành viên Premium.',
+           [
+             { text: 'Để sau', style: 'cancel' },
+             { text: 'Nâng cấp ngay', onPress: () => navigation.navigate('Profile', { screen: 'Premium' }) }
+           ]
+         );
+      }
     } finally {
       setPredicting(false);
     }
@@ -115,7 +127,9 @@ const DashboardScreen: React.FC = () => {
       loadBudgets();
       loadUnreadCount();
       getExpenses(); 
-    }, [loadSummary, loadBudgets, loadUnreadCount, getExpenses]),
+      // Fetch blogs and handle error to avoid "Uncaught in promise" alert
+      getBlogs(true).catch(e => console.error('Dashboard getBlogs error:', e));
+    }, [loadSummary, loadBudgets, loadUnreadCount, getExpenses, getBlogs]),
   );
 
   const budgetAlerts = getAlerts();
@@ -179,12 +193,19 @@ const DashboardScreen: React.FC = () => {
               style={styles.avatarContainer}
               onPress={() => navigation.navigate('Profile')}
             >
-               <LinearGradient
-                  colors={Colors.primaryGradient}
-                  style={styles.avatarGradient}
-               >
-                  <Text style={styles.avatarText}>{greetingName[0]}</Text>
-               </LinearGradient>
+               {authContext?.user?.avatar ? (
+                 <Image 
+                   source={{ uri: authContext.user.avatar }} 
+                   style={styles.avatarImage}
+                 />
+               ) : (
+                 <LinearGradient
+                    colors={Colors.primaryGradient}
+                    style={styles.avatarGradient}
+                 >
+                    <Text style={styles.avatarText}>{greetingName[0]}</Text>
+                 </LinearGradient>
+               )}
             </TouchableOpacity>
           </View>
         </View>
@@ -232,6 +253,11 @@ const DashboardScreen: React.FC = () => {
           </View>
         )}
 
+        {/* AI Anomaly Detection */}
+        <View style={styles.section}>
+          <AnomalyDetectionWidget />
+        </View>
+
         {/* Chart Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Phân tích chi tiêu</Text>
@@ -246,7 +272,15 @@ const DashboardScreen: React.FC = () => {
         {/* AI Prediction Section */}
         <View style={styles.section}>
            <View style={styles.rowBetween}>
-              <Text style={styles.sectionTitle}>AI Dự báo</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.sectionTitle}>AI Dự báo</Text>
+                <TouchableOpacity 
+                   style={{ marginLeft: 8 }} 
+                   onPress={() => navigation.navigate('AiInsights')}
+                >
+                   <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity onPress={handlePredict} disabled={predicting}>
                  <Text style={styles.linkText}>
                     {predicting ? 'Đang chạy...' : 'Chạy dự báo'}
@@ -287,6 +321,48 @@ const DashboardScreen: React.FC = () => {
           <FinancialTipsWidget />
         </View>
 
+        {/* Latest Blog Post */}
+        {blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published').length > 0 && (
+          <View style={styles.section}>
+             <View style={styles.rowBetween}>
+                <Text style={styles.sectionTitle}>Kiến thức tài chính</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Blog')}>
+                   <Text style={styles.linkText}>Xem tất cả</Text>
+                </TouchableOpacity>
+             </View>
+             <TouchableOpacity 
+               activeOpacity={0.9}
+               onPress={() => {
+                 const latestBlog = blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0];
+                 navigation.navigate('BlogDetail', { slug: latestBlog.slug });
+               }}
+             >
+                <GlassCard style={styles.blogCard}>
+                   {blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].thumbnailUrl ? (
+                      <Image source={{ uri: blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].thumbnailUrl }} style={styles.blogThumb} />
+                   ) : (
+                      <View style={styles.blogThumbPlaceholder}>
+                         <Ionicons name="newspaper-outline" size={32} color={Colors.primaryLight} />
+                      </View>
+                   )}
+                   <View style={styles.blogInfo}>
+                      <View style={styles.blogMeta}>
+                         <View style={styles.blogBadge}>
+                            <Text style={styles.blogBadgeText}>{blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].category || 'Kiến thức'}</Text>
+                         </View>
+                         <Text style={styles.blogDate}>
+                            {new Date(blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].createdAt).toLocaleDateString('vi-VN')}
+                         </Text>
+                      </View>
+                      <Text style={styles.blogTitle} numberOfLines={2}>
+                         {blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].title}
+                      </Text>
+                   </View>
+                </GlassCard>
+             </TouchableOpacity>
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -295,7 +371,7 @@ const DashboardScreen: React.FC = () => {
          <TouchableOpacity 
             style={styles.fabMain}
             activeOpacity={0.9}
-            onPress={() => navigation.navigate('Transactions', { screen: 'AssistantChat' })}
+            onPress={() => navigation.navigate('ExpenseTab', { screen: 'AssistantChat' })}
          >
             <LinearGradient
                colors={['#8B5CF6', '#6366F1']}
@@ -308,13 +384,13 @@ const DashboardScreen: React.FC = () => {
          <View style={styles.fabOptions}>
             <TouchableOpacity 
                style={styles.fabMini} 
-               onPress={() => navigation.navigate('SmartScan')}
+               onPress={() => navigation.navigate('OCRTab')}
             >
                <Ionicons name="camera" size={20} color={Colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity 
                style={styles.fabMini}
-               onPress={() => navigation.navigate('Transactions', { screen: 'VoiceInput' })}
+               onPress={() => navigation.navigate('ExpenseTab', { screen: 'VoiceInput' })}
             >
                <Ionicons name="mic" size={20} color={Colors.primary} />
             </TouchableOpacity>
@@ -433,6 +509,11 @@ const styles = StyleSheet.create({
     ...Typography.h3,
     color: '#FFF',
   },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.round,
+  },
   heroCard: {
     marginBottom: Spacing.lg,
     paddingVertical: Spacing.lg,
@@ -538,6 +619,57 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.danger,
     marginTop: 8,
+  },
+  blogCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  blogThumb: {
+    width: '100%',
+    height: 160,
+  },
+  blogThumbPlaceholder: {
+    width: '100%',
+    height: 160,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blogInfo: {
+    padding: 16,
+  },
+  blogMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  blogBadge: {
+    backgroundColor: Colors.primaryHighlight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  blogBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+  },
+  blogDate: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  blogTitle: {
+    ...Typography.bodyBold,
+    fontSize: 18,
+    lineHeight: 24,
+    marginBottom: 6,
+  },
+  blogSummary: {
+    ...Typography.caption,
+    lineHeight: 18,
+    color: Colors.textSecondary,
   }
 });
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
+import LinearGradient from 'react-native-linear-gradient';
 import {
   View,
   TextInput,
@@ -13,6 +14,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useAuth } from '../../../common/hooks/useMVVM';
+import { AuthContext } from '../../../store/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/theme';
@@ -42,6 +44,7 @@ type RegisterStep = 'info' | 'otp';
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const { authState, register, verifyOtp, resendOtp, clearMessages } =
     useAuth();
+  const authContext = useContext(AuthContext);
   const [step, setStep] = useState<RegisterStep>('info');
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -76,21 +79,28 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       Alert.alert('OTP đã gửi', `Kiểm tra email ${formData.email.trim()} để lấy mã OTP.`);
       setStep('otp');
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Đăng ký thất bại');
+      const errorMsg = typeof error === 'string' 
+        ? error 
+        : error?.message || error?.response?.data?.message || 'Đăng ký thất bại';
+      Alert.alert('Lỗi', errorMsg);
     }
   }, [formData, validateForm, register]);
 
   const handleVerifyOTP = useCallback(async () => {
     if (!otp.trim()) return setOtpError('Vui lòng nhập mã OTP');
     try {
-      await verifyOtp(formData.email.trim(), otp);
-      Alert.alert('Thành công', 'Đăng ký hoàn tất!', [
-        { text: 'Đăng nhập ngay', onPress: () => { clearMessages(); navigation.navigate('Login'); } }
-      ]);
+      const response = await verifyOtp(formData.email.trim(), otp);
+      // Lưu token vào AsyncStorage thông qua AuthContext
+      if (authContext && response?.accessToken) {
+        await authContext.login(response.accessToken, response.refreshToken);
+      }
+      Alert.alert('Thành công', 'Đăng ký hoàn tất! Bạn đã được đăng nhập tự động.');
+      clearMessages();
+      // Navigation sẽ tự động chuyển sang màn hình chính do AuthContext đã cập nhật isAuthenticated
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Xác thực thất bại');
+      setOtpError(error.message || 'Xác thực thất bại');
     }
-  }, [otp, formData, verifyOtp, clearMessages, navigation]);
+  }, [otp, formData, verifyOtp, clearMessages, authContext]);
 
   const handleInputChange = (field: keyof RegisterFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -107,7 +117,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerGradient}>
+        <LinearGradient
+          colors={Colors.primaryGradient}
+          style={styles.headerGradient}
+        >
           <TouchableOpacity 
             style={styles.backButtonTop}
             onPress={() => step === 'otp' ? setStep('info') : navigation.goBack()}
@@ -115,12 +128,17 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
+            <View style={styles.logoBox}>
+               <View style={styles.logoInner}>
+                  <Text style={styles.logoText}>FE</Text>
+               </View>
+            </View>
             <Text style={styles.logo}>FEPA</Text>
             <Text style={styles.subtitle}>
               {step === 'info' ? 'Bắt đầu hành trình tài chính' : 'Xác thực tài khoản'}
             </Text>
           </View>
-        </View>
+        </LinearGradient>
 
         <GlassCard style={styles.formCard}>
           {step === 'info' ? (
@@ -261,9 +279,38 @@ const styles = StyleSheet.create({
   headerContent: {
     alignItems: 'center',
   },
+  logoBox: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    marginBottom: Spacing.sm,
+  },
+  logoInner: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#0EA5E9',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   logo: {
     ...Typography.h1,
     color: '#FFF',
+    fontSize: 28,
+    fontWeight: '800',
     marginBottom: Spacing.xs,
   },
   subtitle: {

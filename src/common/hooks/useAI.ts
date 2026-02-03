@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   aiRepository,
   CategorizeExpenseRequest,
@@ -24,7 +24,7 @@ export const useAI = (token: string | null) => {
     | AssistantChatResult
     | null
   >(null);
-  const assistantChat = async (payload: AssistantChatRequest) => {
+  const assistantChat = useCallback(async (payload: AssistantChatRequest) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -38,8 +38,9 @@ export const useAI = (token: string | null) => {
     } finally {
       setLoading(false);
     }
-  };
-  const getBudgetAlerts = async (payload: BudgetAlertRequest) => {
+  }, []);
+
+  const getBudgetAlerts = useCallback(async (payload: BudgetAlertRequest) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -53,8 +54,9 @@ export const useAI = (token: string | null) => {
     } finally {
       setLoading(false);
     }
-  };
-  const detectAnomalies = async (payload: AnomalyDetectionRequest) => {
+  }, []);
+
+  const detectAnomalies = useCallback(async (payload: AnomalyDetectionRequest) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -68,9 +70,9 @@ export const useAI = (token: string | null) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const categorizeExpense = async (payload: CategorizeExpenseRequest) => {
+  const categorizeExpense = useCallback(async (payload: CategorizeExpenseRequest) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -84,9 +86,9 @@ export const useAI = (token: string | null) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const predictSpending = async (payload: PredictSpendingRequest) => {
+  const predictSpending = useCallback(async (payload: PredictSpendingRequest) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -100,9 +102,25 @@ export const useAI = (token: string | null) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  return {
+  const getAiInsights = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await aiRepository.getAiInsights();
+      setResult(res);
+      return res;
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi AI');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return useMemo(() => ({
     loading,
     error,
     result,
@@ -111,5 +129,16 @@ export const useAI = (token: string | null) => {
     detectAnomalies,
     getBudgetAlerts,
     assistantChat,
-  };
+    getAiInsights,
+  }), [
+    loading, 
+    error, 
+    result, 
+    categorizeExpense, 
+    predictSpending, 
+    detectAnomalies, 
+    getBudgetAlerts, 
+    assistantChat, 
+    getAiInsights
+  ]);
 };

@@ -14,6 +14,7 @@ import {
   StatusBar,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 import { useAuth } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -38,7 +39,7 @@ interface LoginFormData {
 }
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const { login, authState, loginWithGoogle } = useAuth();
+  const { login, authState } = useAuth();
   const authContext = useContext(AuthContext);
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
@@ -131,14 +132,21 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Gradient */}
-        <View style={styles.headerGradient}>
+        {/* Header with Brand Identity */}
+        <LinearGradient
+          colors={Colors.primaryGradient}
+          style={styles.headerGradient}
+        >
           <View style={styles.headerContent}>
+            <View style={styles.logoBox}>
+               <View style={styles.logoInner}>
+                  <Text style={styles.logoText}>C</Text>
+               </View>
+            </View>
             <Text style={styles.logo}>FEPA</Text>
-            <Text style={styles.subtitle}>Quản lý tài chính thông minh</Text>
-            <Text style={styles.tagline}>Theo dõi chi tiêu, lập kế hoạch tương lai</Text>
+            <Text style={styles.subtitle}>Cố vấn tài chính AI của bạn</Text>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Form Container */}
         <GlassCard style={styles.formCard}>
@@ -184,27 +192,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             style={{ marginTop: Spacing.md }}
           />
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>hoặc tiếp tục với</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={async () => {
-              try {
-                await loginWithGoogle();
-              } catch (e: any) {
-                Alert.alert('Lỗi', e.message);
-              }
-            }}
-            disabled={isLoading}
-          >
-            <Ionicons name="logo-google" size={20} color={Colors.textPrimary} style={{ marginRight: Spacing.sm }} />
-            <Text style={styles.googleButtonText}>Google</Text>
-          </TouchableOpacity>
-
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Chưa có tài khoản? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
@@ -230,7 +217,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   headerGradient: {
-    backgroundColor: Colors.primary,
     paddingTop: Platform.OS === 'ios' ? 80 : 60,
     paddingBottom: Spacing.xxl + 40,
     paddingHorizontal: Spacing.lg,
@@ -240,21 +226,44 @@ const styles = StyleSheet.create({
   headerContent: {
     alignItems: 'center',
   },
+  logoBox: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    marginBottom: Spacing.md,
+  },
+  logoInner: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#0EA5E9',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
   logo: {
     ...Typography.h1,
     color: '#FFF',
-    fontSize: 48,
+    fontSize: 32,
+    fontWeight: '800',
     marginBottom: Spacing.xs,
   },
   subtitle: {
-    ...Typography.h3,
+    ...Typography.bodyBold,
     color: 'rgba(255,255,255,0.9)',
-    marginBottom: Spacing.xs,
-    textAlign: 'center',
-  },
-  tagline: {
-    ...Typography.body,
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
     textAlign: 'center',
   },
   formCard: {
@@ -279,21 +288,6 @@ const styles = StyleSheet.create({
     ...Typography.bodyBold,
     color: Colors.primary,
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.xl,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    ...Typography.small,
-    color: Colors.textMuted,
-    marginHorizontal: Spacing.md,
-  },
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -307,22 +301,6 @@ const styles = StyleSheet.create({
   registerLink: {
     ...Typography.bodyBold,
     color: Colors.primary,
-  },
-  googleButton: {
-    backgroundColor: '#FFF',
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.sm,
-  },
-  googleButtonText: {
-    ...Typography.bodyBold,
-    color: Colors.textPrimary,
   },
   footer: {
     alignItems: 'center',

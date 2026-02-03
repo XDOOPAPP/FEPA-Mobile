@@ -12,7 +12,15 @@ import TwoFactorLoginScreen from '../features/auth/screens/TwoFactorLoginScreen'
 import MainTabNavigator from './MainTabNavigator';
 import NotificationScreen from '../features/notification/screens/NotificationScreen';
 
+// Intro/Onboarding Screens
+import SplashScreen from '../features/onboarding/screens/SplashScreen';
+import OnboardingScreen from '../features/onboarding/screens/OnboardingScreen';
+import WelcomeScreen from '../features/onboarding/screens/WelcomeScreen';
+
 export type RootStackParamList = {
+  Splash: undefined;
+  Onboarding: undefined;
+  Welcome: undefined;
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
@@ -71,13 +79,20 @@ const RootNavigator = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator 
+        screenOptions={{ headerShown: false }}
+      >
         {!isAuthenticated ? (
-          <Stack.Screen
-            name="Auth"
-            component={AuthNavigator}
-            options={{ animation: 'none' }}
-          />
+          <Stack.Group>
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen
+              name="Auth"
+              component={AuthNavigator}
+              options={{ animation: 'none' }}
+            />
+          </Stack.Group>
         ) : (
           <Stack.Group>
             <Stack.Screen

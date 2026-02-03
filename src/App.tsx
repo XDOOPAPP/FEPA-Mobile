@@ -6,8 +6,6 @@ import RootNavigator from './navigation/RootNavigator';
 import { NotificationBanner } from './components/NotificationBanner';
 
 const App = () => {
-  console.log('[App] Rendering App component');
-  
   return (
     <AuthProvider>
       <OCRProvider>

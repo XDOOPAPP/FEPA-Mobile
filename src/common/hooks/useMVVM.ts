@@ -4,6 +4,7 @@ import { useBudgetViewModel } from '../../core/viewmodels/BudgetViewModel';
 import { useOcrViewModel } from '../../core/viewmodels/OcrViewModel';
 import { useSubscriptionViewModel } from '../../core/viewmodels/SubscriptionViewModel';
 import { useBlogViewModel } from '../../core/viewmodels/BlogViewModel';
+import { useAI as useAIHook } from './useAI';
 
 // Re-export types for convenience
 export type { ExpenseFilterOptions, PaginatedExpenses } from '../../core/repositories/ExpenseRepository';
@@ -74,7 +75,7 @@ export const useBlog = () => {
  * Usage: const { scanInvoice, getJob, ocrState } = useOcr(token);
  */
 export const useOcr = (token: string | null) => {
-  return useOcrViewModel(token);
+  return useOcrViewModel();
 };
 
 /**
@@ -98,3 +99,6 @@ export const useApiError = (error: any) => {
   return 'An error occurred';
 };
 
+export const useAI = (token: string | null) => {
+  return useAIHook(token);
+};

@@ -1,3 +1,4 @@
+
 // Expense categories
 export type ExpenseCategory = 
   | 'food'
@@ -34,7 +35,6 @@ export interface CreateExpenseRequest {
   receiptUrl?: string;
   notes?: string;
   tags?: string[];
-  ocrJobId?: string;
   location?: string;
   paymentMethod?: string;
 }

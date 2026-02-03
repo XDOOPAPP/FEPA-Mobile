@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useBaseViewModel, ViewModelState } from './BaseViewModel';
 import {
   Budget,
@@ -167,7 +167,7 @@ export const useBudgetViewModel = (token: string | null) => {
    * Get budget progress (single budget with spending info)
    */
   const getBudgetProgress = useCallback(
-    async (id: string): Promise<BudgetWithProgress> => {
+    async (id: string): Promise<BudgetWithProgress | null> => {
       setLoading(true);
       clearMessages();
       try {
@@ -200,7 +200,7 @@ export const useBudgetViewModel = (token: string | null) => {
     syncState({ currentBudget: null });
   }, [syncState]);
 
-  return {
+  return useMemo(() => ({
     budgetState,
     getBudgets,
     getAllBudgetsWithProgress,
@@ -212,5 +212,17 @@ export const useBudgetViewModel = (token: string | null) => {
     getBudgetProgress,
     clearCurrentBudget,
     clearMessages,
-  };
+  }), [
+    budgetState,
+    getBudgets,
+    getAllBudgetsWithProgress,
+    getBudgetById,
+    createBudget,
+    updateBudget,
+    deleteBudget,
+    getAlerts,
+    getBudgetProgress,
+    clearCurrentBudget,
+    clearMessages,
+  ]);
 };

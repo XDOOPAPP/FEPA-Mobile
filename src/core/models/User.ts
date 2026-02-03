@@ -7,6 +7,9 @@ export interface User {
   twoFactorEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
+  monthlyIncome?: number;
+  savingsGoal?: number;
+  spendingStyle?: 'frugal' | 'balanced' | 'relaxed';
 }
 
 export interface LoginRequest {

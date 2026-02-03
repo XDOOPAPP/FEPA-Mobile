@@ -1,29 +1,43 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   ScrollView,
   Image,
+  StatusBar,
+  Dimensions,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
+import DatePicker from 'react-native-date-picker';
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { useAI } from '../../../common/hooks/useAI';
 import { AuthContext } from '../../../store/AuthContext';
-import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
+import { Colors, Radius, Spacing, Shadow, Typography } from '../../../constants/theme';
+import { GlassCard } from '../../../components/design-system/GlassCard';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const CATEGORIES = [
-  { label: 'Ăn uống', slug: 'food' },
-  { label: 'Đi lại', slug: 'transport' },
-  { label: 'Mua sắm', slug: 'shopping' },
-  { label: 'Hóa đơn', slug: 'utilities' },
-  { label: 'Giải trí', slug: 'entertainment' },
-  { label: 'Sức khỏe', slug: 'healthcare' },
-  { label: 'Khác', slug: 'other' },
+  { label: 'Ăn uống', slug: 'food', icon: 'restaurant-outline', color: '#F59E0B' },
+  { label: 'Đi lại', slug: 'transport', icon: 'car-outline', color: '#3B82F6' },
+  { label: 'Mua sắm', slug: 'shopping', icon: 'cart-outline', color: '#EC4899' },
+  { label: 'Giải trí', slug: 'entertainment', icon: 'film-outline', color: '#10B981' },
+  { label: 'Sức khỏe', slug: 'healthcare', icon: 'medkit-outline', color: '#EF4444' },
+  { label: 'Khác', slug: 'other', icon: 'grid-outline', color: '#64748B' },
+];
+
+const DATE_CONFIG = [
+  { id: 'today', label: 'Hôm nay', icon: '☀️', color: '#FEF3C7', textColor: '#92400E' },
+  { id: 'yesterday', label: 'Hôm qua', icon: '🌙', color: '#E0F2FE', textColor: '#075985' },
+  { id: 'custom', label: 'Chọn ngày', icon: '📅', color: '#F3E8FF', textColor: '#6B21A8' },
 ];
 
 type EditExpenseRouteParams = {
@@ -34,7 +48,7 @@ const EditExpenseScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<{ params: EditExpenseRouteParams }, 'params'>>();
   const { expenseId } = route.params;
-  
+
   const authContext = useContext(AuthContext);
   const { getExpenseById, updateExpense, expenseState } = useExpense(
     authContext?.userToken || null,
@@ -43,12 +57,12 @@ const EditExpenseScreen: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('other');
+  const [category, setCategory] = useState('food');
   const [note, setNote] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(new Date());
+  const [dateType, setDateType] = useState('custom');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState('');
-  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
-  const [aiSuggesting, setAiSuggesting] = useState(false);
 
   // Load expense data on mount
   useEffect(() => {
@@ -57,10 +71,27 @@ const EditExpenseScreen: React.FC = () => {
         const expense = await getExpenseById(expenseId);
         if (expense) {
           setAmount(expense.amount.toString());
-          setCategory(expense.category || 'other');
+          setCategory(expense.category || 'food');
           setNote(expense.description || '');
-          setDate(expense.spentAt?.split('T')[0] || new Date().toISOString().split('T')[0]);
+          const d = new Date(expense.spentAt);
+          setDate(isNaN(d.getTime()) ? new Date() : d);
           setReceiptUrl(expense.receiptUrl || '');
+          
+          // Determine dateType for chips
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          
+          const expenseDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          
+          if (expenseDate.getTime() === today.getTime()) {
+            setDateType('today');
+          } else if (expenseDate.getTime() === yesterday.getTime()) {
+            setDateType('yesterday');
+          } else {
+            setDateType('custom');
+          }
         }
       } catch (error: any) {
         Alert.alert('Lỗi', error.message || 'Không thể tải chi tiêu');
@@ -72,31 +103,24 @@ const EditExpenseScreen: React.FC = () => {
     loadExpense();
   }, [expenseId, getExpenseById, navigation]);
 
-  const handleAISuggest = async () => {
-    setAiSuggesting(true);
-    setAiSuggestion(null);
-    try {
-      const parsedAmount = Number(amount.replace(/[^0-9]/g, ''));
-      if (!parsedAmount || parsedAmount <= 0) {
-        Alert.alert('Lỗi', 'Vui lòng nhập số tiền hợp lệ để gợi ý danh mục');
-        setAiSuggesting(false);
-        return;
-      }
-      const payload = {
-        amount: parsedAmount,
-        description: note,
-        spentAt: new Date(date).toISOString(),
-      };
-      const res = await categorizeExpense(payload);
-      if (res && res.category) {
-        setAiSuggestion(res.category);
-      } else {
-        setAiSuggestion('Không có gợi ý');
-      }
-    } catch {
-      setAiSuggestion('Không thể gợi ý');
-    } finally {
-      setAiSuggesting(false);
+  const formattedAmount = useMemo(() => {
+    if (!amount) return '';
+    const numericValue = amount.replace(/[^0-9]/g, '');
+    if (!numericValue) return '';
+    return Number(numericValue).toLocaleString('vi-VN');
+  }, [amount]);
+
+  const handleDateSelect = (type: string) => {
+    setDateType(type);
+    const now = new Date();
+    if (type === 'today') {
+      setDate(now);
+    } else if (type === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(now.getDate() - 1);
+      setDate(yesterday);
+    } else if (type === 'custom') {
+      setShowDatePicker(true);
     }
   };
 
@@ -108,19 +132,18 @@ const EditExpenseScreen: React.FC = () => {
     }
 
     try {
-      const categoryLabel =
-        CATEGORIES.find(item => item.slug === category)?.label || 'Chi tiêu';
+      const categoryLabel = CATEGORIES.find(item => item.slug === category)?.label || 'Chi tiêu';
       const description = note.trim() || `Chi tiêu ${categoryLabel}`;
 
       await updateExpense(expenseId, {
         amount: parsedAmount,
         category,
         description,
-        spentAt: new Date(date).toISOString(),
+        spentAt: date.toISOString(),
         receiptUrl: receiptUrl.trim() || undefined,
       });
 
-      Alert.alert('Thành công', 'Đã cập nhật chi tiêu', [
+      Alert.alert('Thành công', 'Đã cập nhật giao dịch', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
@@ -128,288 +151,403 @@ const EditExpenseScreen: React.FC = () => {
     }
   };
 
+  const currentCategoryColor = useMemo(() => {
+    return CATEGORIES.find(c => c.slug === category)?.color || Colors.primary;
+  }, [category]);
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Đang tải...</Text>
+        <Text style={styles.loadingText}>Đang tải chi tiêu...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Chỉnh sửa chi tiêu</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
       
-      <Text style={styles.label}>Số tiền (VND)</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Nhập số tiền"
-        keyboardType="numeric"
-        value={amount}
-        onChangeText={setAmount}
-      />
+      {/* Background Glow */}
+      <View style={[styles.bgGlow, { backgroundColor: currentCategoryColor }]} />
 
-      <Text style={styles.label}>Danh mục</Text>
-      <View style={styles.categoryWrap}>
-        {CATEGORIES.map(item => (
-          <TouchableOpacity
-            key={item.slug}
-            style={[
-              styles.categoryChip,
-              category === item.slug && styles.categoryChipActive,
-            ]}
-            onPress={() => setCategory(item.slug)}
-          >
-            <Text
-              style={[
-                styles.categoryText,
-                category === item.slug && styles.categoryTextActive,
-              ]}
-            >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      <TouchableOpacity
-        style={[
-          styles.suggestButton,
-          (aiSuggesting || aiLoading) && styles.disabled,
-        ]}
-        onPress={handleAISuggest}
-        disabled={aiSuggesting || aiLoading}
-      >
-        {aiSuggesting || aiLoading ? (
-          <ActivityIndicator color="#FFF" />
-        ) : (
-          <Text style={styles.suggestText}>Gợi ý danh mục (AI)</Text>
-        )}
-      </TouchableOpacity>
-      
-      {aiSuggestion && (
-        <View style={styles.suggestResultWrap}>
-          <Text style={styles.suggestResultText}>
-            Gợi ý: {aiSuggestion}
-          </Text>
-          {aiSuggestion !== 'Không thể gợi ý' && aiSuggestion !== 'Không có gợi ý' && (
-            <TouchableOpacity
-              style={styles.suggestApplyButton}
-              onPress={() => {
-                const found = CATEGORIES.find(c => c.label === aiSuggestion);
-                if (found) setCategory(found.slug);
-              }}
-            >
-              <Text style={styles.suggestApplyText}>Áp dụng</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      <Text style={styles.label}>Ghi chú</Text>
-      <TextInput
-        style={[styles.input, styles.noteInput]}
-        placeholder="Ghi chú (tuỳ chọn)"
-        value={note}
-        onChangeText={setNote}
-        multiline
-      />
-
-      <Text style={styles.label}>Ngày</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="YYYY-MM-DD"
-        value={date}
-        onChangeText={setDate}
-      />
-
-      <Text style={styles.label}>Hóa đơn (URL ảnh)</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Dán URL ảnh hóa đơn"
-        value={receiptUrl}
-        onChangeText={setReceiptUrl}
-      />
-      {receiptUrl ? (
-        <View style={styles.previewCard}>
-          <Image source={{ uri: receiptUrl }} style={styles.previewImage} />
-        </View>
-      ) : null}
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.cancelText}>Hủy</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <Ionicons name="chevron-back" size={28} color="#1E293B" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Sửa giao dịch</Text>
+        <TouchableOpacity 
+            style={styles.headerBtn}
+            onPress={() => Alert.alert('AI', 'Gợi ý danh mục dựa trên ghi chú và số tiền')}
+        >
+          <Ionicons name="sparkles" size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        <TouchableOpacity
-          style={[styles.submitButton, expenseState.isLoading && styles.disabled]}
-          onPress={handleSubmit}
-          disabled={expenseState.isLoading}
-        >
-          {expenseState.isLoading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.submitText}>Cập nhật</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        {/* Amount Input */}
+        <View style={styles.amountContainer}>
+          <Text style={styles.sectionLabel}>SỐ TIỀN CHI TIÊU</Text>
+          <View style={styles.amountInputRow}>
+            <TextInput
+              style={styles.amountInput}
+              value={formattedAmount}
+              onChangeText={(val) => setAmount(val.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor="#CBD5E1"
+            />
+            <Text style={[styles.currencySymbol, { color: currentCategoryColor }]}>đ</Text>
+          </View>
+        </View>
+
+        {/* Date Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>THỜI GIAN</Text>
+          <View style={styles.chipRow}>
+            {DATE_CONFIG.map((config) => {
+              const active = dateType === config.id;
+              return (
+                <TouchableOpacity 
+                  key={config.id}
+                  onPress={() => handleDateSelect(config.id)}
+                  style={[
+                    styles.dateChip, 
+                    { backgroundColor: active ? (config.id === 'today' ? '#F59E0B' : config.id === 'yesterday' ? '#0EA5E9' : '#8B5CF6') : '#FFF' },
+                    active && { shadowColor: config.id === 'today' ? '#F59E0B' : config.id === 'yesterday' ? '#0EA5E9' : '#8B5CF6', elevation: 8 }
+                  ]}
+                >
+                  <Text style={{fontSize: 14, marginRight: 6}}>{config.icon}</Text>
+                  <Text style={[styles.dateChipText, active && styles.dateChipTextActive]}>
+                    {config.id === 'custom' || (config.id === 'custom' && dateType === 'custom') ? date.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'}) : config.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Category Grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>DANH MỤC</Text>
+          <View style={styles.categoryGrid}>
+            {CATEGORIES.map((item) => {
+              const active = category === item.slug;
+              return (
+                <TouchableOpacity
+                  key={item.slug}
+                  style={[styles.categoryCard, active && { borderColor: item.color, backgroundColor: '#FFF' }]}
+                  onPress={() => setCategory(item.slug)}
+                >
+                  <View style={[styles.iconBox, { backgroundColor: item.color + '15' }]}>
+                    <Ionicons name={item.icon as any} size={24} color={item.color} />
+                  </View>
+                  <Text style={[styles.categoryLabel, active && { color: '#1E293B', fontWeight: '800' }]}>
+                    {item.label}
+                  </Text>
+                  {active && <View style={[styles.activeDot, { backgroundColor: item.color }]} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Note / Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>GHI CHÚ</Text>
+          <GlassCard style={styles.noteCard}>
+             <TextInput 
+                style={styles.noteInput}
+                placeholder="Mua sắm tại Winmart, ăn tối..."
+                placeholderTextColor="#94A3B8"
+                value={note}
+                onChangeText={setNote}
+                multiline
+             />
+             <TouchableOpacity style={styles.micBtn}>
+                <Ionicons name="document-text-outline" size={20} color={Colors.primary} />
+             </TouchableOpacity>
+          </GlassCard>
+        </View>
+
+        {/* Receipt URL (Optional for Edit) */}
+        {receiptUrl ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>HÓA ĐƠN</Text>
+            <View style={styles.previewCard}>
+              <Image source={{ uri: receiptUrl }} style={styles.previewImage} />
+              <TouchableOpacity 
+                style={styles.removeImageBtn}
+                onPress={() => setReceiptUrl('')}
+              >
+                <Ionicons name="close-circle" size={24} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Submit Button */}
+        <View style={styles.footer}>
+            <TouchableOpacity 
+                onPress={handleSubmit}
+                disabled={expenseState.isLoading}
+                activeOpacity={0.8}
+            >
+                <LinearGradient
+                    colors={['#0EA5E9', '#0284C7']}
+                    style={styles.submitBtn}
+                    start={{x: 0, y: 0}} end={{x: 1, y: 1}}
+                >
+                    {expenseState.isLoading ? (
+                        <ActivityIndicator color="#FFF" />
+                    ) : (
+                        <>
+                            <Text style={styles.submitBtnText}>Cập nhật chi tiêu</Text>
+                            <View style={styles.submitBtnIcon}>
+                                <Ionicons name="checkmark" size={20} color={Colors.primary} />
+                            </View>
+                        </>
+                    )}
+                </LinearGradient>
+            </TouchableOpacity>
+        </View>
+
+      </ScrollView>
+
+      {/* Date Picker Modal */}
+      <DatePicker
+        modal
+        open={showDatePicker}
+        date={date}
+        mode="date"
+        onConfirm={(d) => {
+          setShowDatePicker(false);
+          setDate(d);
+          setDateType('custom');
+        }}
+        onCancel={() => {
+          setShowDatePicker(false);
+        }}
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        title="Chọn ngày giao dịch"
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  content: {
-    padding: Spacing.lg,
+    backgroundColor: '#F8FAFC',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   loadingText: {
-    marginTop: Spacing.md,
-    color: Colors.textSecondary,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.lg,
-  },
-  label: {
+    marginTop: 12,
     fontSize: 14,
+    color: '#64748B',
     fontWeight: '600',
-    marginBottom: Spacing.xs,
-    color: Colors.textPrimary,
   },
-  input: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.md,
-    color: Colors.textPrimary,
+  bgGlow: {
+    position: 'absolute',
+    top: -100,
+    right: -50,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    opacity: 0.1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingBottom: 10,
+  },
+  headerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
     ...Shadow.soft,
   },
-  noteInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  categoryWrap: {
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  amountContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  amountInput: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+    padding: 0,
+    flexShrink: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  currencySymbol: {
+    fontSize: 24,
+    fontWeight: '900',
+    marginLeft: 8,
+    marginTop: 8,
+  },
+  section: {
+    marginTop: 24,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...Shadow.soft,
+  },
+  dateChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  dateChipTextActive: {
+    color: '#FFF',
+  },
+  categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: Spacing.md,
+    gap: 12,
   },
-  categoryChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    backgroundColor: Colors.card,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
+  categoryCard: {
+    width: (SCREEN_WIDTH - 64) / 3,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    ...Shadow.soft,
   },
-  categoryChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  categoryText: {
+  categoryLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    fontWeight: '700',
+    color: '#64748B',
+    textAlign: 'center',
   },
-  categoryTextActive: {
-    color: '#FFF',
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
   },
-  suggestButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: Radius.lg,
-    marginBottom: Spacing.sm,
-  },
-  suggestText: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
-  suggestResultWrap: {
+  noteCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    minHeight: 60,
   },
-  suggestResultText: {
-    fontSize: 13,
-    color: Colors.textPrimary,
-    marginRight: 10,
-  },
-  suggestApplyButton: {
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.md,
-  },
-  suggestApplyText: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.md,
-  },
-  cancelButton: {
+  noteInput: {
     flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
+    fontSize: 15,
+    color: '#1E293B',
+    fontWeight: '500',
   },
-  cancelText: {
-    color: Colors.textPrimary,
-    fontWeight: '600',
-  },
-  submitButton: {
-    flex: 1,
-    backgroundColor: Colors.accent,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: Radius.lg,
-    marginLeft: Spacing.sm,
+  micBtn: {
+    padding: 8,
   },
   previewCard: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.lg,
-    padding: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.md,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 12,
+    marginTop: 8,
+    ...Shadow.soft,
+    position: 'relative',
   },
   previewImage: {
     width: '100%',
-    height: 180,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.border,
+    height: 200,
+    borderRadius: 16,
   },
-  submitText: {
+  removeImageBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+  },
+  footer: {
+    marginTop: 40,
+    marginBottom: 40,
+  },
+  submitBtn: {
+    height: 64,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.glow,
+  },
+  submitBtnText: {
+    fontSize: 18,
+    fontWeight: '800',
     color: '#FFF',
-    fontWeight: '700',
+    marginRight: 10,
   },
-  disabled: {
-    opacity: 0.7,
+  submitBtnIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

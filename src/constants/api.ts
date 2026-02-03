@@ -1,7 +1,7 @@
 // Server Configuration
 const SERVER_IP = '76.13.21.84';
 export const API_BASE_URL = `http://${SERVER_IP}:3000/api/v1`;
-export const SOCKET_BASE_URL = `http://${SERVER_IP}:3102`;
+export const SOCKET_BASE_URL = `http://${SERVER_IP}:3000`;
 
 export const API_ENDPOINTS = {
   // Auth
@@ -65,8 +65,13 @@ export const API_ENDPOINTS = {
 
   // Blogs
   GET_BLOGS: '/blogs',
+  GET_MY_BLOGS: '/blogs/my-blogs',
   GET_BLOG_SLUG: (slug: string) => `/blogs/slug/${slug}`,
-  GET_BLOG_ID: (id: string) => `/blogs/${id}`,
+  GET_BLOG_BY_ID: (id: string) => `/blogs/${id}`,
+  CREATE_BLOG: '/blogs',
+  UPDATE_BLOG: (id: string) => `/blogs/${id}`,
+  DELETE_BLOG: (id: string) => `/blogs/${id}`,
+  SUBMIT_BLOG: (id: string) => `/blogs/${id}/submit`,
   BLOG_UPLOAD_SINGLE: '/blogs/upload/single',
   BLOG_UPLOAD_MULTIPLE: '/blogs/upload/multiple',
 

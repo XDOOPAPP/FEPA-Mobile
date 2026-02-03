@@ -8,6 +8,9 @@ export interface SubscriptionPlan {
   features?: {
     AI: boolean;
     OCR: boolean;
+    unlimitedBudgets?: boolean;
+    exportPDF?: boolean;
+    prioritySupport?: boolean;
   };
   isActive?: boolean;
   isFree?: boolean;

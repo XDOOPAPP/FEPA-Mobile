@@ -4,9 +4,13 @@ export interface User {
   email: string;
   fullName: string;
   avatar?: string;
+  phone?: string;
   twoFactorEnabled?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  monthlyIncome?: number;
+  savingsGoal?: number;
+  spendingStyle?: 'frugal' | 'balanced' | 'relaxed';
   // Có thể thêm các field khác tùy theo API response
 }
 
@@ -28,6 +32,7 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isPremium: boolean;
   premiumExpiry: string | null;
+  isDemoPremium: boolean;
 
   // Functions
   login: (
@@ -40,4 +45,6 @@ export interface AuthContextType {
   refreshAuthToken: () => Promise<boolean>;
   checkTokenValidity: () => Promise<boolean>;
   updateUser: (userData: User) => void;
+  activateDemoPremium: () => Promise<void>;
+  deactivateDemoPremium: () => Promise<void>;
 }

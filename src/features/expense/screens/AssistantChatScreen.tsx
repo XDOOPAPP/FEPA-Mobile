@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useContext } from 'react';
-import { useRoute } from '@react-navigation/native';
+import React, { useMemo, useState, useContext, useEffect, useRef } from 'react';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAI } from '../../../common/hooks/useAI';
 import { AuthContext } from '../../../store/AuthContext';
 import {
@@ -11,9 +11,13 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
+  StatusBar,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Colors } from '../../../constants/theme';
 
 type Message = {
   id: string;
@@ -28,32 +32,27 @@ const SUGGESTIONS = [
 ];
 
 const AssistantChatScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
-      text: 'Xin chào! Bạn muốn hỏi gì về chi tiêu?',
+      text: 'Xin chào! Tôi là FEPA AI. Tôi có thể giúp bạn phân tích chi tiêu hoặc đưa ra lời khuyên tiết kiệm. Bạn muốn hỏi gì?',
       role: 'assistant',
     },
   ]);
   const authContext = useContext(AuthContext);
-  const {
-    assistantChat,
-    loading: aiLoading,
-    error: aiError,
-  } = useAI(authContext?.userToken || null);
+  const { assistantChat, loading: aiLoading } = useAI(authContext?.userToken || null);
 
   const route = useRoute<any>();
   const initialMessage = route.params?.initialMessage;
-  const hasSentRef = React.useRef(false);
-
-  const canSend = input.trim().length > 0 && !aiLoading;
-
-
+  const hasSentRef = useRef(false);
+  const scrollRef = useRef<FlatList>(null);
 
   const handleSend = async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content) return;
+
     const userMessage: Message = {
       id: `${Date.now()}-user`,
       text: content,
@@ -61,8 +60,9 @@ const AssistantChatScreen: React.FC = () => {
     };
     setMessages(prev => [userMessage, ...prev]);
     setInput('');
+    
     try {
-      const res = await assistantChat({ message: content });
+      const res = await assistantChat({ message: content } as any);
       setMessages(prev => [
         {
           id: `${Date.now()}-assistant`,
@@ -72,12 +72,12 @@ const AssistantChatScreen: React.FC = () => {
         ...prev,
       ]);
     } catch (err: any) {
-      console.error('AI Chat Error:', err);
-      const errorMessage = err?.message || 'Có lỗi xảy ra';
+      console.log('[AI Chat] Error:', err);
+      const detail = err.message || 'Lỗi kết nối AI';
       setMessages(prev => [
         {
           id: `${Date.now()}-assistant`,
-          text: `Lỗi kết nối: ${errorMessage}`,
+          text: `🆘 LỖI: ${detail}`,
           role: 'assistant',
         },
         ...prev,
@@ -85,78 +85,109 @@ const AssistantChatScreen: React.FC = () => {
     }
   };
 
-  // Use Effect to send initial message
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialMessage && !hasSentRef.current) {
         hasSentRef.current = true;
         handleSend(initialMessage);
     }
   }, [initialMessage]);
 
-  const suggestions = useMemo(() => SUGGESTIONS, []);
+  useEffect(() => {
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({ tabBarStyle: { display: 'none' } });
+    }
+    return () => {
+      if (parent) {
+        parent.setOptions({ tabBarStyle: undefined });
+      }
+    };
+  }, [navigation]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Trợ lý AI</Text>
+          <View style={styles.statusIndicator}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Đang trực tuyến</Text>
+          </View>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={styles.container}>
             <FlatList
+                ref={scrollRef}
                 data={messages}
                 keyExtractor={item => item.id}
                 inverted
+                showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
                 renderItem={({ item }) => (
-                <View
-                    style={[
-                    styles.messageBubble,
-                    item.role === 'user' ? styles.userBubble : styles.assistantBubble,
-                    ]}
-                >
-                    <Text
-                    style={[
-                        styles.messageText,
-                        item.role === 'user' && styles.userText,
-                    ]}
-                    >
-                    {item.text}
-                    </Text>
-                </View>
+                  <View style={[
+                      styles.messageWrapper,
+                      item.role === 'user' ? styles.userWrapper : styles.assistantWrapper
+                  ]}>
+                    {item.role === 'assistant' && (
+                        <View style={styles.aiAvatar}>
+                           <Ionicons name="sparkles" size={14} color="#FFF" />
+                        </View>
+                    )}
+                    <View style={[
+                        styles.messageBubble,
+                        item.role === 'user' ? styles.userBubble : styles.assistantBubble,
+                    ]}>
+                        <Text style={[styles.messageText, item.role === 'user' && styles.userText]}>
+                          {item.text}
+                        </Text>
+                    </View>
+                  </View>
                 )}
             />
 
-            <View style={styles.suggestionRow}>
-                {suggestions.map(suggestion => (
-                <TouchableOpacity
-                    key={suggestion}
-                    style={styles.suggestionChip}
-                    onPress={() => handleSend(suggestion)}
-                >
-                    <Text style={styles.suggestionText}>{suggestion}</Text>
-                </TouchableOpacity>
-                ))}
-            </View>
+            <View style={styles.bottomSection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionRow}>
+                    {SUGGESTIONS.map(suggestion => (
+                    <TouchableOpacity
+                        key={suggestion}
+                        style={styles.suggestionChip}
+                        onPress={() => handleSend(suggestion)}
+                    >
+                        <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </TouchableOpacity>
+                    ))}
+                </ScrollView>
 
-            <View style={styles.inputRow}>
-                <TextInput
-                style={styles.input}
-                placeholder="Nhập câu hỏi..."
-                placeholderTextColor={Colors.textMuted}
-                value={input}
-                onChangeText={setInput}
-                />
-                <TouchableOpacity
-                style={[styles.sendButton, !canSend && styles.sendDisabled]}
-                onPress={() => handleSend()}
-                disabled={!canSend}
-                >
-                <Text style={styles.sendText}>{aiLoading ? '...' : 'Gửi'}</Text>
-                </TouchableOpacity>
-                {aiError && (
-                <Text style={{ color: 'red', marginLeft: 8 }}>{aiError}</Text>
-                )}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputRow}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Hỏi FEPA AI..."
+                            placeholderTextColor="#94A3B8"
+                            value={input}
+                            onChangeText={setInput}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[styles.sendButton, (!input.trim() || aiLoading) && styles.sendDisabled]}
+                            onPress={() => handleSend()}
+                            disabled={!input.trim() || aiLoading}
+                        >
+                            {aiLoading ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="send" size={20} color="#FFF" />}
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
         </View>
       </KeyboardAvoidingView>
@@ -165,84 +196,40 @@ const AssistantChatScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    padding: Spacing.lg,
-    paddingBottom: 100, // Account for absolute TabBar
-  },
-  listContent: {
-    paddingBottom: Spacing.md,
-  },
-  messageBubble: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    marginBottom: Spacing.sm,
-    maxWidth: '80%',
-    ...Shadow.soft,
-  },
-  userBubble: {
-    alignSelf: 'flex-end',
-    backgroundColor: Colors.primary,
-  },
-  assistantBubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.card,
-  },
-  messageText: {
-    color: Colors.textPrimary,
-    fontSize: 13,
-  },
-  userText: {
-    color: '#FFF',
-  },
-  suggestionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: Spacing.sm,
-  },
-  suggestionChip: {
-    backgroundColor: Colors.primarySoft,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  suggestionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  inputRow: {
+  safeArea: { flex: 1, backgroundColor: '#0F172A' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  header: {
+    height: 60,
+    backgroundColor: '#0F172A',
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.card,
-    color: Colors.textPrimary,
-  },
-  sendButton: {
-    marginLeft: Spacing.sm,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-  },
-  sendDisabled: {
-    opacity: 0.6,
-  },
-  sendText: {
-    color: '#FFF',
-    fontWeight: '700',
-  },
+  backButton: { width: 40, height: 40, justifyContent: 'center' },
+  headerTitleContainer: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+  statusIndicator: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981', marginRight: 6 },
+  statusText: { fontSize: 12, color: '#94A3B8' },
+  listContent: { padding: 16, paddingBottom: 20 },
+  messageWrapper: { flexDirection: 'row', marginBottom: 16, maxWidth: '85%' },
+  userWrapper: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
+  assistantWrapper: { alignSelf: 'flex-start' },
+  aiAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
+  messageBubble: { padding: 12, borderRadius: 20, elevation: 1 },
+  userBubble: { backgroundColor: '#3B82F6', borderBottomRightRadius: 4 },
+  assistantBubble: { backgroundColor: '#FFF', borderBottomLeftRadius: 4 },
+  messageText: { fontSize: 15, lineHeight: 22, color: '#1E293B' },
+  userText: { color: '#FFF' },
+  bottomSection: { backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 12 },
+  suggestionRow: { marginBottom: 12 },
+  suggestionChip: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F1F5F9', borderRadius: 20, marginRight: 8 },
+  suggestionText: { fontSize: 13, color: '#64748B' },
+  inputContainer: { backgroundColor: '#F8FAFC', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 4 },
+  inputRow: { flexDirection: 'row', alignItems: 'center' },
+  input: { flex: 1, maxHeight: 100, fontSize: 15, color: '#1E293B', paddingVertical: 8 },
+  sendButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  sendDisabled: { backgroundColor: '#CBD5E1' },
 });
 
 export default AssistantChatScreen;

@@ -8,6 +8,7 @@ import {
   PaginatedExpenses 
 } from '../repositories/ExpenseRepository';
 import { offlineExpenseRepository } from '../repositories/OfflineExpenseRepository';
+import { budgetAlertService } from '../services/BudgetAlertService';
 
 export interface ExpenseViewModelState extends ViewModelState {
   expenses: Expense[];
@@ -162,6 +163,12 @@ export const useExpenseViewModel = (token: string | null) => {
           },
         });
         setSuccess('Tạo chi tiêu thành công');
+        
+        // Check budget alerts after creating expense
+        budgetAlertService.checkBudgetAlerts(payload.category).catch(err => {
+          console.warn('Budget alert check failed:', err);
+        });
+        
         return created;
       } catch (error: any) {
         setError(error.message || 'Failed to create expense');

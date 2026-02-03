@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing, Typography } from '../../../constants/theme';
 import { GlassCard } from '../../../components/design-system/GlassCard';
 import { useAI } from '../../../common/hooks/useAI';
@@ -7,7 +8,10 @@ import { useAuth } from '../../../common/hooks/useMVVM';
 import { getProfileExtras } from '../../../utils/profileExtrasStorage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
+import { useNavigation } from '@react-navigation/native';
+
 const FinancialTipsWidget: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { authState } = useAuth();
   const { assistantChat, loading } = useAI(authState.token || null);
   const [advice, setAdvice] = useState<string>('');
@@ -19,22 +23,33 @@ const FinancialTipsWidget: React.FC = () => {
 
   const loadAdvice = async () => {
     try {
-      const extras = await getProfileExtras();
-      if (!extras.age || !extras.income) {
-        setAdvice('Hãy cập nhật hồ sơ (Tuổi & Thu nhập) để nhận lời khuyên tài chính cá nhân hóa.');
+      const savedProfile = await AsyncStorage.getItem('ai_financial_profile');
+      if (!savedProfile) {
+        setAdvice('Hãy cập nhật Hồ sơ AI (Thu nhập & Mục tiêu) để nhận lời khuyên tài chính cá nhân hóa từ Gemini.');
         setProfileLoaded(false);
         return;
       }
-      setProfileLoaded(true);
+      
+      const profile = JSON.parse(savedProfile);
+      const { monthlyIncome, savingsGoal, spendingStyle } = profile;
 
-      const prompt = `Tôi ${extras.age} tuổi, thu nhập ${extras.income} VND/tháng, sống tại ${extras.location || 'Việt Nam'}. Hãy cho tôi một lời khuyên tài chính ngắn gọn, thực tế trong 1 câu.`;
+      if (!monthlyIncome) {
+        setAdvice('Hãy thiết lập thu nhập hàng tháng trong Profile để AI có thể tư vấn kế hoạch tiết kiệm cho bạn.');
+        setProfileLoaded(false);
+        return;
+      }
+      
+      setProfileLoaded(true);
+      const styleVn = spendingStyle === 'frugal' ? 'tiết kiệm cực hạn' : spendingStyle === 'relaxed' ? 'thoải mái hưởng thụ' : 'cân bằng chi tiêu';
+      
+      const prompt = `Hồ sơ tài chính: Thu nhập ${monthlyIncome.toLocaleString()} VNĐ/tháng, mục tiêu tiết kiệm ${savingsGoal}% thu nhập, phong cách ${styleVn}. Hãy đưa ra 1 lời khuyên tài chính ngắn gọn, thực tế và hành động được ngay trong 1 câu.`;
       
       const res = await assistantChat({ message: prompt });
       if (res && res.reply) {
         setAdvice(res.reply);
       }
     } catch (e) {
-      setAdvice('Không thể lấy lời khuyên lúc này.');
+      setAdvice('Không thể kết nối với trí tuệ nhân tạo FEPA lúc này.');
     }
   };
 
@@ -59,7 +74,9 @@ const FinancialTipsWidget: React.FC = () => {
       </View>
       
       {!profileLoaded && !loading && (
-        <Text style={styles.hint}>Vào Profile để cập nhật thông tin.</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+           <Text style={styles.hint}>Vào Profile để cập nhật thông tin <Ionicons name="arrow-forward" size={12} /></Text>
+        </TouchableOpacity>
       )}
     </GlassCard>
   );

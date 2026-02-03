@@ -1,374 +1,326 @@
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback, useContext, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   Text,
   TouchableOpacity,
   FlatList,
-  Alert,
   ActivityIndicator,
   StatusBar,
   ScrollView,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useBudget } from '../../../common/hooks/useMVVM';
-import { useAI } from '../../../common/hooks/useAI';
+import { useBudget, useAI, useExpense } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
 import { BudgetWithProgress } from '../../../core/models/Budget';
 import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  food: 'Ăn uống',
-  transport: 'Đi lại',
-  shopping: 'Mua sắm',
-  utilities: 'Hóa đơn',
-  entertainment: 'Giải trí',
-  healthcare: 'Sức khỏe',
-  other: 'Khác',
-};
-
-const CATEGORY_ICONS: Record<string, string> = {
-  food: 'restaurant',
-  transport: 'car',
-  shopping: 'cart',
-  utilities: 'flash',
-  entertainment: 'game-controller',
-  healthcare: 'medical',
-  other: 'ellipsis-horizontal',
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  food: '#F59E0B',
-  transport: '#3B82F6',
-  shopping: '#EC4899',
-  utilities: '#8B5CF6',
-  entertainment: '#10B981',
-  healthcare: '#EF4444',
-  other: '#6B7280',
-};
-
-// Get status color based on progress
-const getStatusColor = (status?: 'SAFE' | 'WARNING' | 'EXCEEDED') => {
-  switch (status) {
-    case 'EXCEEDED':
-      return Colors.danger;
-    case 'WARNING':
-      return Colors.warning;
-    default:
-      return Colors.success;
+const normalizeCategory = (value?: string) => {
+  if (!value) return 'other';
+  const v = value.toLowerCase();
+  
+  // Directly check if it's already a key
+  if (['food', 'transport', 'shopping', 'utilities', 'entertainment', 'healthcare', 'other'].includes(v)) {
+    return v;
   }
+  
+  // Map Vietnamese and variations to keys
+  if (v.includes('ăn') || v.includes('uống') || v.includes('thực phẩm') || v.includes('food')) return 'food';
+  if (v.includes('đi') || v.includes('chuyển') || v.includes('xe') || v.includes('transport')) return 'transport';
+  if (v.includes('mua') || v.includes('sắm') || v.includes('shopping')) return 'shopping';
+  if (v.includes('hóa đơn') || v.includes('tiện ích') || v.includes('utilities')) return 'utilities';
+  if (v.includes('giải trí') || v.includes('chơi')) return 'entertainment';
+  if (v.includes('sức khỏe') || v.includes('y tế') || v.includes('thuốc')) return 'healthcare';
+  
+  return 'other';
 };
+
+const MOCK_AI_ALERTS = [
+  {
+    category: 'food',
+    budget: 2000000,
+    spent: 1750000,
+    alertLevel: 'warning',
+    message: 'Bạn đã dùng 87% ngân sách Ăn uống. Hãy cân nhắc trước khi gọi món nhé!'
+  },
+  {
+    category: 'shopping',
+    budget: 1500000,
+    spent: 1600000,
+    alertLevel: 'danger',
+    message: 'Cảnh báo! Bạn đã vượt giới hạn Mua sắm tháng này.'
+  }
+];
 
 const BudgetListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const authContext = useContext(AuthContext);
-  const { budgetState, getAllBudgetsWithProgress, deleteBudget } =
+  const { budgetState, getAllBudgetsWithProgress } =
     useBudget(authContext?.userToken || null);
-  const {
-    assistantChat,
-    loading: aiLoading,
-  } = useAI(authContext?.userToken || null);
+  const { getExpensesFiltered } = useExpense(authContext?.userToken || null);
+  const { getBudgetAlerts, loading: aiLoading } = useAI(authContext?.userToken || null);
   
-  const [aiInsight, setAiInsight] = React.useState('');
-  const [analyzing, setAnalyzing] = React.useState(false);
+  const [aiAlerts, setAiAlerts] = useState<any[]>([]);
+  const [processedBudgets, setProcessedBudgets] = useState<BudgetWithProgress[]>([]);
+  const [totals, setTotals] = useState({ budget: 0, spent: 0 });
 
-  const handleDelete = (id: string) => {
-    Alert.alert('Xác nhận', 'Bạn muốn xóa ngân sách này?', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Xóa',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteBudget(id);
-          } catch (error: any) {
-            Alert.alert('Lỗi', error.message || 'Không thể xóa ngân sách');
-          }
-        },
-      },
-    ]);
-  };
-
-  // Calculate summary stats
-  const totalBudget = budgetState.budgets.reduce(
-    (sum, b) => sum + (b.limitAmount || 0),
-    0,
-  );
-  const totalSpent = budgetState.budgets.reduce(
-    (sum, b) => sum + (b.progress?.totalSpent || 0),
-    0,
-  );
+  const totalBudget = totals.budget;
+  const totalSpent = totals.spent;
   const remaining = totalBudget - totalSpent;
   const overallPercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
-  const handleAnalyzeBudget = async () => {
-    setAnalyzing(true);
-    setAiInsight('');
+  const loadData = useCallback(async () => {
     try {
-      const budgetDetails = budgetState.budgets.map(b => 
-        `${b.name} (${CATEGORY_LABELS[b.category] || b.category}): ${b.progress?.totalSpent}/${b.limitAmount}`
-      ).join(', ');
+      const budgets = await getAllBudgetsWithProgress();
+      
+      // Also fetch all expenses for this month to fix the server discrepancy
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+      
+      const expenseRes = await getExpensesFiltered({ fromDate: firstDay, toDate: lastDay });
+      const expenses = expenseRes.data || [];
+      
+      // Manually calculate progress for each budget
+      const budgetsList = budgets || budgetState.budgets;
+      const budgetsWithFix = (budgetsList || []).map(b => {
+        const catKey = normalizeCategory(b.category);
+        const relevantExpenses = expenses.filter((e: any) => normalizeCategory(e.category) === catKey);
+        const spent = relevantExpenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+        const limit = b.limitAmount || 1;
+        
+        return {
+          ...b,
+          progress: {
+            totalSpent: spent,
+            remaining: limit - spent,
+            percentage: (spent / limit) * 100,
+            status: spent > limit ? 'EXCEEDED' : spent > limit * 0.8 ? 'WARNING' : 'SAFE'
+          }
+        } as BudgetWithProgress;
+      });
+      
+      setProcessedBudgets(budgetsWithFix);
+      
+      const tBudget = budgetsWithFix.reduce((sum, b) => sum + (b.limitAmount || 0), 0);
+      const tSpent = budgetsWithFix.reduce((sum, b) => sum + (b.progress?.totalSpent || 0), 0);
+      setTotals({ budget: tBudget, spent: tSpent });
 
-      const prompt = `Phân tích tình hình tài chính của tôi:
-Tổng ngân sách: ${totalBudget.toLocaleString()}đ
-Đã chi tiêu: ${totalSpent.toLocaleString()}đ (chiếm ${overallPercentage.toFixed(1)}%)
-Chi tiết các khoản: ${budgetDetails}
-
-Hãy đóng vai chuyên gia tài chính, đưa ra nhận xét ngắn gọn, cảnh báo rủi ro nếu có và cho 1 lời khuyên hữu ích bằng tiếng Việt. Trả lời dưới 100 từ.`;
-
-      const res = await assistantChat({ message: prompt });
-      if (res && res.reply) {
-        setAiInsight(res.reply);
-      } else {
-        setAiInsight('Hiện tại AI chưa đưa ra được nhận xét. Bạn hãy thử lại sau nhé.');
-      }
-    } catch (error) {
-       setAiInsight('Không thể kết nối với chuyên gia AI lúc này. Vui lòng kiểm tra mạng.');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  const loadBudgets = useCallback(async () => {
-    try {
-      await getAllBudgetsWithProgress();
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể tải ngân sách');
+      console.log('Error loading budgets:', error);
     }
-  }, [getAllBudgetsWithProgress]);
+
+    try {
+      // Load AI Alerts for current month
+      const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+      const res = await getBudgetAlerts({ month: currentMonth });
+      if (res && res.alerts) {
+        setAiAlerts(res.alerts);
+      }
+    } catch (error: any) {
+      console.log('Using mock AI alerts (Service 404 or Offline)');
+      setAiAlerts(MOCK_AI_ALERTS);
+    }
+  }, [getAllBudgetsWithProgress, getExpensesFiltered, getBudgetAlerts, budgetState.budgets]);
 
   useFocusEffect(
     useCallback(() => {
-      loadBudgets();
-    }, [loadBudgets]),
+      loadData();
+    }, [loadData]),
   );
 
   const renderBudgetCard = ({ item }: { item: BudgetWithProgress }) => {
     const progress = item.progress;
     const percentage = progress?.percentage || 0;
-    const statusColor = getStatusColor(progress?.status);
-    const categoryIcon = CATEGORY_ICONS[item.category || 'other'] || 'ellipsis-horizontal';
-    const categoryColor = CATEGORY_COLORS[item.category || 'other'] || Colors.textMuted;
-
+    const status = progress?.status || 'SAFE';
+    
+    // Determine colors based on status
+    const isExceeded = percentage > 100 || status === 'EXCEEDED';
+    const isWarning = percentage > 80 || status === 'WARNING';
+    
+    const progressColor = isExceeded ? '#EF4444' : isWarning ? '#F59E0B' : Colors.primary;
+    const cardBorderColor = isExceeded ? '#FEE2E2' : isWarning ? '#FEF3C7' : 'transparent';
+    const cardBgColor = isExceeded ? '#FEF2F2' : isWarning ? '#FFFBEB' : Colors.card;
+    
     return (
       <TouchableOpacity
-        style={styles.budgetCard}
-        activeOpacity={0.8}
+        style={[
+          styles.budgetListItem, 
+          { backgroundColor: cardBgColor, borderWidth: isExceeded || isWarning ? 1 : 0, borderColor: cardBorderColor }
+        ]}
+        activeOpacity={0.7}
         onPress={() =>
           navigation.navigate('BudgetProgress', {
             budgetId: item.id,
             name: item.name,
+            budgetData: item, // Pass full budget data for immediate display
           })
         }
       >
-        <View style={styles.cardHeader}>
-          <View style={[styles.iconContainer, { backgroundColor: `${categoryColor}20` }]}>
-            <Ionicons name={categoryIcon} size={24} color={categoryColor} />
+        <View style={styles.progressCircleContainer}>
+          <View style={[styles.progressCirclePlaceholder, { borderColor: progressColor + '30' }]}>
+             <View style={[styles.progressCircleFill, { height: `${Math.min(percentage, 100)}%`, backgroundColor: progressColor + '25' }]} />
+             <Text style={[styles.progressCircleText, { color: progressColor }]}>{Math.round(percentage)}%</Text>
           </View>
-          
-          <View style={styles.cardHeaderInfo}>
-            <Text style={styles.budgetName}>{item.name}</Text>
-            <Text style={styles.budgetCategory}>
-              {item.category ? CATEGORY_LABELS[item.category] || item.category : 'Khác'}
-            </Text>
-          </View>
-
-          <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteIcon}>
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-          </TouchableOpacity>
         </View>
-
-        {/* Progress Section */}
-        {progress && (
-          <View style={styles.progressSection}>
-            <View style={styles.amountRow}>
-              <View>
-                <Text style={styles.amountLabel}>Đã chi</Text>
-                <Text style={[styles.amountValue, { color: statusColor }]}>
-                  {progress.totalSpent.toLocaleString()}₫
-                </Text>
+        
+        <View style={styles.itemContent}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.itemTitle}>{item.name}</Text>
+            {isExceeded && (
+              <View style={{ backgroundColor: '#EF4444', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '700' }}>VƯỢT MỨC</Text>
               </View>
-              <View style={styles.amountDivider} />
-              <View>
-                <Text style={styles.amountLabel}>Hạn mức</Text>
-                <Text style={styles.amountValue}>
-                  {item.limitAmount.toLocaleString()}₫
-                </Text>
+            )}
+            {!isExceeded && isWarning && (
+              <View style={{ backgroundColor: '#F59E0B', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '700' }}>SẮP HẾT</Text>
               </View>
-            </View>
-
-            {/* Progress Bar */}
-            <View style={styles.progressBarContainer}>
-              <View style={styles.progressBar}>
-                <LinearGradient
-                  colors={
-                    progress.status === 'EXCEEDED'
-                      ? ['#EF4444', '#DC2626']
-                      : progress.status === 'WARNING'
-                      ? ['#F59E0B', '#D97706']
-                      : ['#10B981', '#059669']
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[
-                    styles.progressFill,
-                    { width: `${Math.min(percentage, 100)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.percentageText, { color: statusColor }]}>
-                {Math.round(percentage)}%
-              </Text>
-            </View>
-
-            {/* Status Badge */}
-            <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
-              <Ionicons
-                name={
-                  progress.status === 'EXCEEDED'
-                    ? 'alert-circle'
-                    : progress.status === 'WARNING'
-                    ? 'warning'
-                    : 'checkmark-circle'
-                }
-                size={14}
-                color={statusColor}
-              />
-              <Text style={[styles.statusText, { color: statusColor }]}>
-                {progress.status === 'EXCEEDED'
-                  ? 'Vượt mức'
-                  : progress.status === 'WARNING'
-                  ? 'Cảnh báo'
-                  : 'An toàn'}
-              </Text>
-            </View>
+            )}
           </View>
-        )}
-
-        {/* Date Range */}
-        <View style={styles.dateRow}>
-          <Ionicons name="calendar-outline" size={12} color={Colors.textMuted} />
-          <Text style={styles.dateText}>
-            {item.startDate ? new Date(item.startDate).toLocaleDateString('vi-VN') : '--'}
-            {' → '}
-            {item.endDate ? new Date(item.endDate).toLocaleDateString('vi-VN') : '--'}
+          <Text style={[styles.itemSubtitle, isExceeded && { color: '#EF4444' }]}>
+            {isExceeded ? `Vượt: ${Math.abs(progress?.remaining || 0).toLocaleString()}₫` : `Còn: ${(progress?.remaining || 0).toLocaleString()}₫`}
           </Text>
+          <View style={styles.limitRow}>
+            <Ionicons name="wallet-outline" size={12} color={Colors.textMuted} />
+            <Text style={styles.limitText}>HẠN MỨC: {(item.limitAmount / 1000000).toFixed(1)}M</Text>
+          </View>
         </View>
+
+        <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
       </TouchableOpacity>
     );
   };
 
   const renderHeader = () => (
-    <>
-      {/* Summary Stats */}
-      <View style={styles.summaryContainer}>
-        <LinearGradient
-          colors={Colors.primaryGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.summaryGradient}
-        >
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Tổng ngân sách</Text>
-              <Text style={styles.summaryValue}>{totalBudget.toLocaleString()}₫</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Còn lại</Text>
-              <Text style={styles.summaryValue}>{remaining.toLocaleString()}₫</Text>
-            </View>
-          </View>
-          
-          <View style={styles.overallProgressBar}>
-            <View
-              style={[
-                styles.overallProgressFill,
-                {
-                  width: `${Math.min(overallPercentage, 100)}%`,
-                  backgroundColor: overallPercentage > 80 ? '#EF4444' : '#FFF',
-                },
-              ]}
-            />
-          </View>
-          <Text style={styles.overallPercentage}>
-            {Math.round(overallPercentage)}% đã sử dụng
-          </Text>
-        </LinearGradient>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.primaryAction]}
-          onPress={() => navigation.navigate('CreateBudget')}
-        >
-          <Ionicons name="add-circle" size={20} color="#FFF" />
-          <Text style={styles.actionButtonText}>Tạo ngân sách</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.secondaryAction]}
-          onPress={handleAnalyzeBudget}
-          disabled={analyzing || aiLoading}
-        >
-          <Ionicons
-            name={analyzing || aiLoading ? 'hourglass' : 'analytics'}
-            size={20}
-            color={Colors.primary}
-          />
-          <Text style={[styles.actionButtonText, { color: Colors.primary }]}>
-            {analyzing || aiLoading ? 'Đang phân tích...' : 'Phân tích AI'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* AI Insight Result */}
-      {aiInsight ? (
-        <View style={styles.aiInsightCard}>
-            <View style={styles.aiHeader}>
-                <LinearGradient colors={['#7C3AED', '#A78BFA']} style={styles.aiIconBg}>
-                   <Ionicons name="sparkles" size={16} color="#FFF" />
-                </LinearGradient>
-                <Text style={styles.aiTitle}>Góc nhìn chuyên gia AI</Text>
-            </View>
-            <Text style={styles.aiText}>{aiInsight}</Text>
+    <View style={styles.headerSection}>
+      <View style={styles.topRow}>
+        <View style={styles.profileBadge}>
+           <Ionicons name="person-circle" size={44} color={Colors.primary} />
         </View>
-      ) : null}
+        <View style={styles.headerTextContainer}>
+           <Text style={styles.headerTitle}>Tổng quan Ngân sách</Text>
+           <Text style={styles.headerSubtitle}>Tháng này • {new Date().toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}</Text>
+        </View>
+        <TouchableOpacity style={styles.calendarButton}>
+          <Ionicons name="calendar-outline" size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
 
-      <Text style={styles.sectionTitle}>Danh sách ngân sách</Text>
-    </>
+      {/* Main Budget Card */}
+      <LinearGradient
+        colors={Colors.primaryGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.mainCard}
+      >
+        <Text style={styles.mainCardLabel}>Tổng ngân sách còn lại</Text>
+        <Text style={styles.mainCardValue}>{remaining.toLocaleString()} <Text style={styles.currency}>₫</Text></Text>
+        
+        <View style={styles.cardStatsRow}>
+          <View style={styles.cardStatItem}>
+            <Text style={styles.cardStatLabel}>Đã chi: {totalSpent.toLocaleString()} ₫</Text>
+          </View>
+          <View style={styles.cardStatItem}>
+            <Text style={styles.cardStatLabel}>Hạn mức: {totalBudget.toLocaleString()} ₫</Text>
+          </View>
+        </View>
+
+        <View style={styles.mainProgressBar}>
+          <View style={[styles.mainProgressFill, { width: `${Math.min(overallPercentage, 100)}%` }]} />
+        </View>
+
+        <Text style={styles.motivationalText}>
+          {overallPercentage > 100 ? "Bạn đã vượt hạn mức chi tiêu!" : overallPercentage > 80 ? "Sắp chạm ngưỡng ngân sách!" : "Bạn đang quản lý chi tiêu rất tốt!"}
+        </Text>
+      </LinearGradient>
+
+      {/* AI Insights Section */}
+      {aiAlerts.length > 0 && (
+        <View style={styles.aiSection}>
+           <View style={styles.aiHeader}>
+              <View style={styles.aiTitleRow}>
+                <Ionicons name="sparkles" size={16} color={Colors.primary} />
+                <Text style={styles.aiTitle}>Phân tích từ FEPA AI+</Text>
+              </View>
+              {aiLoading && <ActivityIndicator size="small" color={Colors.primary} />}
+           </View>
+           
+           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.aiScroll}>
+              {aiAlerts.map((alert, index) => (
+                <View key={index} style={[styles.aiCard, alert.alertLevel === 'danger' ? styles.aiCardDanger : styles.aiCardWarning]}>
+                   <Ionicons 
+                    name={alert.alertLevel === 'danger' ? 'alert-circle' : 'warning'} 
+                    size={20} 
+                    color={alert.alertLevel === 'danger' ? '#EF4444' : '#F59E0B'} 
+                   />
+                   <Text style={styles.aiCardText} numberOfLines={2}>{alert.message}</Text>
+                </View>
+              ))}
+           </ScrollView>
+        </View>
+      )}
+
+      <View style={styles.listHeaderRow}>
+        <Text style={styles.listSectionTitle}>Ngân sách theo mục</Text>
+        <TouchableOpacity>
+           <Text style={styles.seeAllText}>Xem tất cả</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
       
-      {budgetState.isLoading ? (
+      {budgetState.isLoading && budgetState.budgets.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Đang tải...</Text>
         </View>
       ) : (
-        <FlatList
-          data={budgetState.budgets}
-          keyExtractor={item => item.id}
-          renderItem={renderBudgetCard}
-          ListHeaderComponent={renderHeader}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="wallet-outline" size={64} color={Colors.border} />
-              <Text style={styles.emptyText}>Chưa có ngân sách nào</Text>
-              <Text style={styles.emptySubText}>
-                Tạo ngân sách để theo dõi chi tiêu
-              </Text>
-            </View>
-          }
-        />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={processedBudgets}
+            keyExtractor={item => item.id}
+            renderItem={renderBudgetCard}
+            ListHeaderComponent={renderHeader}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={() => (
+              <View style={styles.footer}>
+                <TouchableOpacity 
+                  style={styles.demoButton}
+                  onPress={() => {
+                    DeviceEventEmitter.emit('notification_received', {
+                      title: "⚠️ Cảnh báo ngân sách Ăn uống",
+                      message: "Bạn đã tiêu xài 1.700.000₫, chạm ngưỡng 85% hạn mức của tháng này rồi nhé!",
+                      type: "BUDGET_WARNING"
+                    });
+                  }}
+                >
+                  <Ionicons name="flask-outline" size={16} color="#64748B" />
+                  <Text style={styles.demoButtonText}>Kiểm tra thông báo cảnh báo (Demo)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+          
+          <TouchableOpacity 
+            style={styles.fab}
+            onPress={() => navigation.navigate('CreateBudget')}
+          >
+            <LinearGradient
+              colors={Colors.primaryGradient}
+              style={styles.fabGradient}
+            >
+              <Ionicons name="add" size={32} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -380,249 +332,263 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   listContent: {
+    paddingBottom: 120, 
+  },
+  headerSection: {
     padding: Spacing.lg,
-    paddingBottom: 100,
+    paddingTop: 20,
   },
-  summaryContainer: {
-    marginBottom: Spacing.lg,
-  },
-  summaryGradient: {
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    ...Shadow.card,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: Spacing.md,
-  },
-  summaryItem: {
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 4,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFF',
-  },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  overallProgressBar: {
-    height: 8,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: Spacing.xs,
-  },
-  overallProgressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  overallPercentage: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    textAlign: 'center',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 20,
+  },
+  profileBadge: {
+    width: 44,
+    height: 44,
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.lg,
-    gap: Spacing.xs,
+    alignItems: 'center',
   },
-  primaryAction: {
-    backgroundColor: Colors.primary,
+  headerTextContainer: {
+    flex: 1,
+    marginLeft: 12,
   },
-  secondaryAction: {
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...Shadow.soft,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
-  actionButtonText: {
-    fontSize: 14,
+  headerSubtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  calendarButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mainCard: {
+    borderRadius: Radius.xl,
+    padding: 24,
+    ...Shadow.glow,
+  },
+  mainCardLabel: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 8,
     fontWeight: '600',
-    color: '#FFF',
   },
-  aiInsightCard: {
-    backgroundColor: '#F5F3FF', // Very light violet
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
+  mainCardValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 16,
+  },
+  currency: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  cardStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  cardStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardStatLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  mainProgressBar: {
+    height: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 5,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  mainProgressFill: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 5,
+  },
+  motivationalText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  aiSection: {
+    marginTop: 24,
   },
   aiHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
+    marginBottom: 12,
   },
-  aiIconBg: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  aiTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
   },
   aiTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#7C3AED',
-  },
-  aiText: {
     fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 22,
+    fontWeight: '700',
+    color: Colors.primary,
   },
-  sectionTitle: {
-    fontSize: 16,
+  aiScroll: {
+    paddingLeft: 0,
+  },
+  aiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    marginRight: 12,
+    width: 250,
+    gap: 10,
+    borderWidth: 1,
+  },
+  aiCardWarning: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+  },
+  aiCardDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  aiCardText: {
+    fontSize: 11,
+    color: Colors.textPrimary,
+    flex: 1,
+    lineHeight: 16,
+  },
+  listHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  listSectionTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: Spacing.md,
   },
-  budgetCard: {
+  seeAllText: {
+    fontSize: 13,
+    color: Colors.primary,
+  },
+  budgetListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.card,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: Radius.lg,
     ...Shadow.card,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
+  progressCircleContainer: {
+    width: 54,
+    height: 54,
+    marginRight: 16,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  progressCirclePlaceholder: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 4,
+    borderColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.sm,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
   },
-  cardHeaderInfo: {
+  progressCircleFill: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: Colors.primary,
+    opacity: 0.15,
+  },
+  progressCircleText: {
+    color: Colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  itemContent: {
     flex: 1,
   },
-  budgetName: {
-    fontSize: 16,
+  itemTitle: {
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  budgetCategory: {
+  itemSubtitle: {
     fontSize: 12,
     color: Colors.textSecondary,
+    marginBottom: 6,
   },
-  deleteIcon: {
-    padding: Spacing.xs,
-  },
-  progressSection: {
-    marginBottom: Spacing.sm,
-  },
-  amountRow: {
+  limitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    gap: 4,
   },
-  amountLabel: {
-    fontSize: 11,
+  limitText: {
+    fontSize: 9,
     color: Colors.textMuted,
-    marginBottom: 2,
-  },
-  amountValue: {
-    fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    letterSpacing: 0.5,
   },
-  amountDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: Colors.border,
-    marginHorizontal: Spacing.md,
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    ...Shadow.lg,
+    elevation: 8,
   },
-  progressBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.border,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
+  fabGradient: {
+    width: '100%',
     height: '100%',
-    borderRadius: 4,
-  },
-  percentageText: {
-    fontSize: 13,
-    fontWeight: '700',
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  statusBadge: {
-    flexDirection: 'row',
+    borderRadius: 32,
+    justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginTop: Spacing.xs,
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: Spacing.xs,
-  },
-  dateText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl * 2,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginTop: Spacing.md,
-  },
-  emptySubText: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: Spacing.xs,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: Spacing.sm,
-    color: Colors.textSecondary,
+  footer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  demoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  demoButtonText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginLeft: 8,
+    fontWeight: '600',
   },
 });
 

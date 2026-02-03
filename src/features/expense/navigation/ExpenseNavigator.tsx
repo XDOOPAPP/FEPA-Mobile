@@ -61,7 +61,7 @@ const ExpenseNavigator = () => {
       <Stack.Screen
         name="AssistantChat"
         component={AssistantChatScreen}
-        options={{ headerShown: true, title: 'Trợ lý chi tiêu' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="VoiceInput"

@@ -13,8 +13,9 @@ import {
   Linking,
   Platform,
   Share,
+  Dimensions,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { useAI } from '../../../common/hooks/useAI';
@@ -35,13 +36,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
-  food: 'fast-food',
-  transport: 'car',
-  shopping: 'cart',
-  utilities: 'flash',
-  entertainment: 'game-controller',
-  healthcare: 'medkit',
-  other: 'pricetag',
+  food: 'restaurant-outline',
+  transport: 'car-outline',
+  shopping: 'cart-outline',
+  utilities: 'flash-outline',
+  entertainment: 'film-outline',
+  healthcare: 'medkit-outline',
+  other: 'grid-outline',
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -55,15 +56,39 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const CATEGORY_KEYS = Object.keys(CATEGORY_LABELS) as Array<keyof typeof CATEGORY_LABELS>;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const normalizeCategory = (value?: string) => {
   if (!value) return 'other';
-  const lower = value.toLowerCase();
-  const keyMatch = CATEGORY_KEYS.find(key => key.toLowerCase() === lower);
-  if (keyMatch) return keyMatch;
-  const labelMatch = CATEGORY_KEYS.find(key => CATEGORY_LABELS[key].toLowerCase() === lower);
-  if (labelMatch) return labelMatch;
+  const v = value.toLowerCase();
+  
+  // Directly check if it's already a key
+  if (CATEGORY_KEYS.includes(v as any)) {
+    return v;
+  }
+  
+  // Map Vietnamese and variations to keys
+  if (v.includes('ăn') || v.includes('uống') || v.includes('thực phẩm') || v.includes('food')) return 'food';
+  if (v.includes('đi') || v.includes('chuyển') || v.includes('xe') || v.includes('transport')) return 'transport';
+  if (v.includes('mua') || v.includes('sắm') || v.includes('shopping')) return 'shopping';
+  if (v.includes('hóa đơn') || v.includes('tiện ích') || v.includes('utilities')) return 'utilities';
+  if (v.includes('giải trí') || v.includes('chơi')) return 'entertainment';
+  if (v.includes('sức khỏe') || v.includes('y tế') || v.includes('thuốc')) return 'healthcare';
+  
   return 'other';
+};
+
+const formatDescription = (desc?: string, category?: string) => {
+  if (!desc) return 'Không có ghi chú';
+  const catKey = normalizeCategory(category);
+  const label = CATEGORY_LABELS[catKey] || 'chi tiêu';
+  const d = desc.toLowerCase();
+  
+  // If it's a generic unaccented description from AI, fix it
+  if (d.includes('chi tieu') || d.includes('an uong') || d.includes('mua sam') || d.includes('di chuyen')) {
+     return `Chi tiêu ${label.toLowerCase()}`;
+  }
+  return desc;
 };
 
 type DateFilter = 'all' | 'today' | '7d' | '30d';
@@ -79,12 +104,21 @@ const ExpenseListScreen: React.FC = () => {
     expenseState, 
     deleteExpense, 
     loadMoreExpenses, 
-    getExpensesFiltered 
+    getExpensesFiltered,
+    getExpenses
   } = useExpense(authContext?.userToken || null);
   
+  const route = useRoute<any>();
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('all');
+  const [category, setCategory] = useState(route.params?.category || 'all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+
+  // Update category if route params change
+  React.useEffect(() => {
+    if (route.params?.category) {
+      setCategory(route.params.category);
+    }
+  }, [route.params?.category]);
   
   const {
     detectAnomalies,
@@ -96,26 +130,12 @@ const ExpenseListScreen: React.FC = () => {
 
   const loadExpenses = useCallback(async () => {
     try {
-      const filters: any = { page: 1, limit: 20 };
-      if (query.trim()) filters.search = query.trim();
-      if (category !== 'all') filters.category = category;
-      
-      const now = new Date();
-      if (dateFilter === 'today') {
-         filters.fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
-      } else if (dateFilter === '7d') {
-         const d = new Date(); d.setDate(d.getDate() - 7);
-         filters.fromDate = d.toISOString().split('T')[0];
-      } else if (dateFilter === '30d') {
-         const d = new Date(); d.setDate(d.getDate() - 30);
-         filters.fromDate = d.toISOString().split('T')[0];
-      }
-
-      await getExpensesFiltered(filters);
+      // Use getExpenses to get both local and server data immediately
+      await getExpenses();
     } catch (error: any) {
       console.log('Load error:', error);
     }
-  }, [category, query, dateFilter, getExpensesFiltered]);
+  }, [getExpenses]);
 
   // Debounce Search
   React.useEffect(() => {
@@ -125,8 +145,12 @@ const ExpenseListScreen: React.FC = () => {
      return () => clearTimeout(timer);
   }, [loadExpenses]);
 
-  // Remove focus effect to avoid double loading on mount (useEffect above handles it)
-  // useFocusEffect(useCallback(() => { loadExpenses(); }, []));
+  // Refresh when screen focus (e.g. returning from CreateExpense)
+  useFocusEffect(
+    useCallback(() => {
+      loadExpenses();
+    }, [loadExpenses])
+  );
 
   const handleDetectAnomalies = async () => {
     setDetecting(true);
@@ -163,9 +187,56 @@ const ExpenseListScreen: React.FC = () => {
     ]);
   };
 
+  const removeVietnameseTones = (str: string) => {
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim();
+  };
+
   const filteredExpenses = useMemo(() => {
-    return expenseState.expenses || [];
-  }, [expenseState.expenses]);
+    let list = [...(expenseState.expenses || [])];
+
+    // 1. Filter by Date
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (dateFilter === 'today') {
+      list = list.filter(e => {
+        const spentAt = new Date(e.spentAt);
+        return spentAt >= today;
+      });
+    } else if (dateFilter === '7d') {
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      list = list.filter(e => new Date(e.spentAt) >= sevenDaysAgo);
+    } else if (dateFilter === '30d') {
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      list = list.filter(e => new Date(e.spentAt) >= thirtyDaysAgo);
+    }
+
+    // 2. Filter by Category
+    if (category !== 'all') {
+      list = list.filter(e => normalizeCategory(e.category) === category);
+    }
+
+    // 3. Filter by Search Query (with Vietnamese tone removal)
+    if (query.trim()) {
+      const q = removeVietnameseTones(query.toLowerCase());
+      list = list.filter(e => {
+        const desc = removeVietnameseTones((e.description || '').toLowerCase());
+        const catLabel = removeVietnameseTones((CATEGORY_LABELS[normalizeCategory(e.category)] || '').toLowerCase());
+        return desc.includes(q) || catLabel.includes(q);
+      });
+    }
+
+    // 4. Sort by date descending
+    return list.sort((a, b) => new Date(b.spentAt).getTime() - new Date(a.spentAt).getTime());
+  }, [expenseState.expenses, dateFilter, category, query]);
 
   const listRows = useMemo<ListRow[]>(() => {
     const rows: ListRow[] = [];
@@ -240,11 +311,12 @@ const ExpenseListScreen: React.FC = () => {
     return (
       <TouchableOpacity 
         onPress={() => navigation.navigate('EditExpense', { expenseId: expense.id })}
-        activeOpacity={0.9}
+        activeOpacity={0.8}
+        style={styles.itemWrapper}
       >
-        <GlassCard style={styles.itemCard}>
+        <View style={styles.itemCard}>
             <View style={[styles.iconBox, { backgroundColor: `${categoryColor}15` }]}>
-               <Ionicons name={CATEGORY_ICONS[normalizedCat] || 'pricetag'} size={20} color={categoryColor} />
+               <Ionicons name={CATEGORY_ICONS[normalizedCat] || 'receipt'} size={22} color={categoryColor} />
             </View>
             
             <View style={styles.itemInfo}>
@@ -253,64 +325,48 @@ const ExpenseListScreen: React.FC = () => {
                   {CATEGORY_LABELS[normalizedCat] || expense.category || 'Khác'}
                 </Text>
                 <Text style={[styles.itemAmount, { color: categoryColor }]}>
-                  {expense.amount?.toLocaleString()}₫
+                  - {expense.amount?.toLocaleString()}₫
                 </Text>
               </View>
               
               <View style={styles.itemBottomRow}>
                 <Text style={styles.itemDesc} numberOfLines={1}>
-                  {expense.description ? expense.description : 'Không có ghi chú'}
+                  {formatDescription(expense.description, expense.category)}
                 </Text>
                 
-                <View style={styles.itemActions}>
-                  <TouchableOpacity onPress={() => navigation.navigate('EditExpense', { expenseId: expense.id })} style={styles.actionBtn}>
-                    <Ionicons name="create-outline" size={16} color={Colors.textSecondary} />
-                  </TouchableOpacity>
-                  <View style={styles.actionSpace} />
-                  <TouchableOpacity onPress={() => handleDelete(expense.id)} style={styles.actionBtn}>
-                    <Ionicons name="trash-outline" size={16} color={Colors.danger} />
-                  </TouchableOpacity>
+                <View style={styles.itemDateBox}>
+                   <Ionicons name="time-outline" size={10} color={Colors.textMuted} />
+                   <Text style={styles.itemDateText}>
+                      {new Date(expense.spentAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                   </Text>
                 </View>
               </View>
             </View>
-        </GlassCard>
+            
+            <Ionicons name="chevron-forward" size={16} color={Colors.border} style={{marginLeft: 8}} />
+        </View>
       </TouchableOpacity>
     );
   };
 
-  const renderListHeader = () => (
+  const listHeader = useMemo(() => (
     <>
+      {/* Background Mesh */}
+      <View style={styles.bgGlow} />
+
       {/* Header Area */}
       <View style={styles.header}>
          <View>
             <Text style={styles.screenTitle}>Lịch sử chi tiêu</Text>
-            <Text style={styles.screenSubtitle}>Quản lý chi tiêu cá nhân</Text>
+            <Text style={styles.screenSubtitle}>Quản lý tài chính cá nhân</Text>
          </View>
-         <View style={{flexDirection: 'row'}}>
+         <View style={styles.headerActions}>
              <TouchableOpacity 
-                style={[styles.headerIconBtn, { marginRight: 8 }]}
+                style={styles.headerIconBtn}
                 onPress={handleExport}
              >
-                <Ionicons name="download-outline" size={24} color={Colors.textPrimary} />
+                <Ionicons name="share-outline" size={20} color={Colors.textPrimary} />
              </TouchableOpacity>
-
-             <TouchableOpacity 
-                style={[styles.headerIconBtn, { marginRight: 8 }]}
-                onPress={() => navigation.navigate('ExpenseStats')}
-             >
-                <Ionicons name="pie-chart-outline" size={24} color={Colors.textPrimary} />
-             </TouchableOpacity>
-             <TouchableOpacity
-              onPress={() => navigation.navigate('CreateExpense')}
-            >
-              <LinearGradient
-                colors={Colors.primaryGradient}
-                style={styles.addButtonGradient}
-                start={{x: 0, y: 0}} end={{x: 1, y: 1}}
-              >
-                <Ionicons name="add" size={24} color="#FFF" />
-              </LinearGradient>
-            </TouchableOpacity>
          </View>
       </View>
 
@@ -324,6 +380,7 @@ const ExpenseListScreen: React.FC = () => {
              style={styles.searchInput}
              value={query}
              onChangeText={setQuery}
+             autoCorrect={false}
            />
         </View>
         <TouchableOpacity 
@@ -335,32 +392,32 @@ const ExpenseListScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Quick Actions - Restored */}
+      {/* Quick Actions */}
       <View style={styles.quickActionsRow}>
          <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('VoiceInput')}>
             <View style={[styles.quickActionIcon, { backgroundColor: '#E0F2FE' }]}>
-               <Ionicons name="mic" size={24} color="#0EA5E9" />
+               <Ionicons name="mic" size={26} color="#0EA5E9" />
             </View>
             <Text style={styles.quickActionLabel}>Giọng nói</Text>
          </TouchableOpacity>
          
          <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('OCRScan')}>
             <View style={[styles.quickActionIcon, { backgroundColor: '#F3E8FF' }]}>
-               <Ionicons name="scan" size={24} color="#8B5CF6" />
+               <Ionicons name="scan" size={26} color="#8B5CF6" />
             </View>
             <Text style={styles.quickActionLabel}>Scan HĐ</Text>
          </TouchableOpacity>
 
          <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('AssistantChat')}>
             <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
-               <Ionicons name="chatbubbles" size={24} color="#10B981" />
+               <Ionicons name="sparkles" size={26} color="#10B981" />
             </View>
             <Text style={styles.quickActionLabel}>Trợ lý AI</Text>
          </TouchableOpacity>
 
          <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('ReceiptGallery')}>
             <View style={[styles.quickActionIcon, { backgroundColor: '#FFEDD5' }]}>
-               <Ionicons name="images" size={24} color="#F59E0B" />
+               <Ionicons name="images" size={26} color="#F59E0B" />
             </View>
             <Text style={styles.quickActionLabel}>Hóa đơn</Text>
          </TouchableOpacity>
@@ -408,44 +465,44 @@ const ExpenseListScreen: React.FC = () => {
         </ScrollView>
       </View>
 
-      {/* Summary Filter Bar */}
-      <View style={styles.summaryBar}>
+      {/* Summary Card */}
+      <LinearGradient
+        colors={['#0F172A', '#1E293B']}
+        style={styles.summaryCard}
+        start={{x: 0, y: 0}}
+        end={{x: 1, y: 1}}
+      >
          <View style={styles.summaryInfo}>
-            <Text style={styles.summaryLabel}>Tổng chi tiêu</Text>
+            <Text style={styles.summaryLabel}>TỔNG CHI TIÊU</Text>
             <Text style={styles.summaryValue}>{totalAmount.toLocaleString()}₫</Text>
          </View>
          <View style={styles.summaryBadge}>
             <Text style={styles.summaryCount}>{filteredExpenses.length} giao dịch</Text>
          </View>
-      </View>
+      </LinearGradient>
       
       {/* Anomalies Alert */}
       {anomalyResult && anomalyResult.anomalies && anomalyResult.anomalies.length > 0 && (
          <GlassCard style={styles.anomalyAlert}>
             <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
-               <Ionicons name="warning" size={20} color={Colors.warning} />
-               <Text style={styles.anomalyTitle}>Phát hiện bất thường</Text>
+               <Ionicons name="alert-circle" size={20} color={Colors.danger} />
+               <Text style={styles.anomalyTitle}>Chi tiêu bất thường</Text>
             </View>
-            {anomalyResult.anomalies.slice(0, 3).map((item: any, idx: number) => {
+            {anomalyResult.anomalies.slice(0, 2).map((item: any, idx: number) => {
                const expense = item.expense || {};
                return (
                <View key={idx} style={styles.anomalyItem}>
                   <Text style={styles.anomalyText}>
-                     • {CATEGORY_LABELS[expense.category] || expense.category || 'Khác'}: 
+                     {CATEGORY_LABELS[normalizeCategory(expense.category)] || expense.category || 'Khác'}
                   </Text>
                   <Text style={styles.anomalyAmount}>{expense.amount?.toLocaleString()}₫</Text>
                </View>
                );
             })}
-            {anomalyResult.anomalies.length > 3 && (
-               <Text style={{ textAlign: 'center', fontSize: 12, color: Colors.textMuted, marginTop: 4 }}>
-                  ...và {anomalyResult.anomalies.length - 3} giao dịch khác
-               </Text>
-            )}
          </GlassCard>
       )}
     </>
-  );
+  ), [query, dateFilter, category, totalAmount, filteredExpenses.length, anomalyResult, detecting, aiLoading, navigation]);
 
   return (
     <View style={styles.container}>
@@ -455,7 +512,7 @@ const ExpenseListScreen: React.FC = () => {
         data={listRows}
         keyExtractor={item => item.id}
         renderItem={renderItem}
-        ListHeaderComponent={renderListHeader}
+        ListHeaderComponent={listHeader}
         contentContainerStyle={styles.listContent}
         onEndReached={() => !expenseState.isLoading && loadMoreExpenses()}
         onEndReachedThreshold={0.5}
@@ -469,6 +526,21 @@ const ExpenseListScreen: React.FC = () => {
         }
         ListFooterComponent={expenseState.isLoading ? <ActivityIndicator color={Colors.primary} style={{margin: 20}} /> : <View style={{height: 100}} />}
       />
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('CreateExpense')}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={['#0EA5E9', '#0284C7']}
+          style={styles.fabGradient}
+          start={{x: 0.2, y: 0.2}} end={{x: 0.8, y: 0.8}}
+        >
+          <Ionicons name="add" size={32} color="#FFF" />
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -476,50 +548,86 @@ const ExpenseListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
+  },
+  bgGlow: {
+    position: 'absolute',
+    top: -150,
+    right: -100,
+    width: 300,
+    height: 300,
+    backgroundColor: '#0EA5E9',
+    opacity: 0.1,
+    borderRadius: SCREEN_WIDTH,
+    transform: [{ scale: 1.5 }],
+  },
+  listContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
-    marginTop: 10,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 15,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   screenTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: '#0F172A',
     letterSpacing: -0.5,
+    flex: 1,
   },
   screenSubtitle: {
-    ...Typography.caption,
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
     marginTop: 2,
   },
   headerIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    // backgroundColor: '#FFF', // Remove white bg
-    backgroundColor: 'rgba(0,0,0,0.03)', // Very subtle gray
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
     alignItems: 'center',
     justifyContent: 'center',
-    // borderWidth: 1, // Remove border
-    // borderColor: Colors.border, 
-    marginRight: 4, // Add clearer spacing
+    ...Shadow.soft,
   },
   addButtonGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadow.glow,
   },
+  fab: {
+    position: 'absolute',
+    bottom: 100, // Increased to avoid being hidden by the TabBar
+    right: 20,
+    ...Shadow.glow,
+    shadowColor: '#0EA5E9',
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 8,
+    zIndex: 999,
+  },
+  fabGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchRow: {
     flexDirection: 'row',
-    marginBottom: Spacing.md,
+    marginBottom: 24,
     gap: 12,
   },
   searchContainer: {
@@ -527,23 +635,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderRadius: Radius.full,
+    borderRadius: 16,
+    ...Shadow.soft,
+    height: 52,
     borderWidth: 1,
-    borderColor: Colors.border,
-    height: 48,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
   },
   searchInput: {
     flex: 1,
     height: '100%',
-    paddingHorizontal: 10,
-    ...Typography.body,
-    color: Colors.textPrimary,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: '#1E293B',
   },
   aiButton: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadow.glow,
@@ -551,165 +660,111 @@ const styles = StyleSheet.create({
   quickActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-    paddingHorizontal: 4,
+    marginBottom: 24,
   },
   quickActionBtn: {
     alignItems: 'center',
-    width: '22%',
+    width: (SCREEN_WIDTH - 60) / 4,
   },
   quickActionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    backgroundColor: '#FFF',
     ...Shadow.soft,
   },
   quickActionLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    textAlign: 'center',
+    fontWeight: '700',
+    color: '#475569',
   },
   filterContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: 24,
   },
   filterContent: {
-    paddingRight: Spacing.lg,
-    alignItems: 'center',
-    paddingVertical: 4,
+    gap: 8,
   },
   chip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
+    paddingVertical: 10,
+    borderRadius: 12,
     backgroundColor: '#FFF',
-    marginRight: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
-    minHeight: 36,
+    borderColor: '#E2E8F0',
+    minWidth: 80,
+    alignItems: 'center',
     justifyContent: 'center',
+    ...Shadow.soft,
   },
   chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#0EA5E9',
+    borderColor: '#0EA5E9',
   },
   chipText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+    fontWeight: '700',
+    color: '#64748B',
   },
   chipTextActive: {
     color: '#FFF',
   },
-  vDividerLarge: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.border,
-    marginHorizontal: 8,
-  },
-  summaryBar: {
+  summaryCard: {
+    borderRadius: 24,
+    padding: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
-    backgroundColor: '#FFF',
-    padding: 16,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    marginBottom: 24,
+    ...Shadow.glow,
   },
   summaryInfo: {
     flex: 1,
   },
   summaryLabel: {
     fontSize: 12,
-    color: Colors.textMuted,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '800',
+    letterSpacing: 1,
     marginBottom: 4,
   },
   summaryValue: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '800',
-    color: Colors.primary,
-    letterSpacing: -0.5,
+    color: '#FFF',
   },
   summaryBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: Colors.background,
-    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   summaryCount: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  anomalyAlert: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-    marginBottom: Spacing.md,
-  },
-  anomalyTitle: {
-    ...Typography.bodyBold,
-    color: Colors.danger,
-    marginLeft: 8,
-  },
-  anomalyItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-    paddingLeft: 28,
-  },
-  anomalyText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  anomalyAmount: {
-    ...Typography.captionBold,
-    color: Colors.danger,
-  },
-  listContent: {
-    paddingBottom: 40,
-  },
-  groupHeaderContainer: {
-    marginTop: 16,
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  groupHeader: {
-    fontSize: 14,
     fontWeight: '700',
-    color: Colors.textMuted,
-    textTransform: 'capitalize',
+    color: '#FFF',
+  },
+  itemWrapper: {
+    marginBottom: 12,
   },
   itemCard: {
-    marginBottom: 12,
-    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 20,
     backgroundColor: '#FFF',
+    padding: 16,
+    borderRadius: 20,
+    ...Shadow.soft,
     borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.8)',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    borderColor: 'rgba(226, 232, 240, 0.4)',
   },
   iconBox: {
     width: 48,
     height: 48,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -721,55 +776,104 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  itemCategory: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  itemAmount: {
+    fontSize: 16,
+    fontWeight: '800',
   },
   itemBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  itemCategory: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  itemAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
   itemDesc: {
     fontSize: 13,
-    color: Colors.textMuted,
+    color: '#64748B',
     flex: 1,
     marginRight: 8,
   },
-  itemActions: {
+  itemDateBox: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 4,
   },
-  actionBtn: {
-    padding: 6,
-    backgroundColor: Colors.background,
-    borderRadius: 8,
+  itemDateText: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '700',
   },
-  actionSpace: {
-    width: 2, 
+  groupHeaderContainer: {
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  groupHeader: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  anomalyAlert: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FECDD3',
+    padding: 16,
+    marginBottom: 24,
+    borderRadius: 16,
+  },
+  anomalyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#E11D48',
+    marginLeft: 8,
+  },
+  anomalyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingLeft: 28,
+    marginBottom: 4,
+  },
+  anomalyText: {
+    fontSize: 12,
+    color: '#9F1239',
+    fontWeight: '600',
+  },
+  anomalyAmount: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#E11D48',
   },
   emptyContainer: {
     alignItems: 'center',
-    marginTop: 60,
-    opacity: 0.5,
+    marginTop: 80,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginTop: 16,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 20,
   },
   emptySubText: {
     fontSize: 14,
-    color: Colors.textMuted,
+    color: '#64748B',
     marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  vDividerLarge: {
+     width: 1,
+     height: 24,
+     backgroundColor: '#E2E8F0',
+     marginHorizontal: 4,
   },
 });
 

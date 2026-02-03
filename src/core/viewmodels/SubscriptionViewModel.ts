@@ -14,6 +14,28 @@ export interface SubscriptionViewModelState extends ViewModelState {
   history: Subscription[];
 }
 
+// Fallback Premium Plans for demo/offline mode
+const FALLBACK_PREMIUM_PLANS: SubscriptionPlan[] = [
+  {
+    _id: 'demo-monthly',
+    name: 'Premium Tháng',
+    price: 49000,
+    interval: 'MONTHLY',
+    features: { OCR: true, AI: true, unlimitedBudgets: true, exportPDF: true },
+    isActive: true,
+    isFree: false,
+  },
+  {
+    _id: 'demo-yearly',
+    name: 'Premium Năm',
+    price: 399000,
+    interval: 'YEARLY',
+    features: { OCR: true, AI: true, unlimitedBudgets: true, exportPDF: true, prioritySupport: true },
+    isActive: true,
+    isFree: false,
+  },
+];
+
 export const useSubscriptionViewModel = () => {
   const { state, setLoading, setError, setSuccess, clearMessages } =
     useBaseViewModel();
@@ -35,12 +57,21 @@ export const useSubscriptionViewModel = () => {
     setLoading(true);
     clearMessages();
     try {
-      const plans = await subscriptionRepository.getPlans();
+      let plans = await subscriptionRepository.getPlans();
+      
+      // If no premium plans exist, inject fallback demo plans for UI display
+      const hasPremium = plans.some((p: SubscriptionPlan) => !p.isFree && p.price > 0);
+      if (!hasPremium) {
+        plans = [...plans, ...FALLBACK_PREMIUM_PLANS];
+      }
+      
       syncState({ plans });
       return plans;
     } catch (error: any) {
+      // On error, use fallback plans so UI still works
+      syncState({ plans: FALLBACK_PREMIUM_PLANS });
       setError(error.message || 'Failed to fetch plans');
-      throw error;
+      return FALLBACK_PREMIUM_PLANS;
     } finally {
       setLoading(false);
     }

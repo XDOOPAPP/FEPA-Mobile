@@ -6,6 +6,8 @@ interface ModernInputProps extends TextInputProps {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
   containerStyle?: ViewStyle;
 }
 
@@ -13,6 +15,8 @@ export const ModernInput: React.FC<ModernInputProps> = ({
   label,
   error,
   icon,
+  leftIcon,
+  rightIcon,
   style,
   containerStyle,
   ...props
@@ -22,13 +26,14 @@ export const ModernInput: React.FC<ModernInputProps> = ({
       {label && <Text style={styles.label}>{label}</Text>}
       
       <View style={[styles.container, error ? styles.errorBorder : null, style]}>
-        {icon && <View style={styles.icon}>{icon}</View>}
+        {(leftIcon || icon) && <View style={styles.icon}>{leftIcon || icon}</View>}
         <TextInput
           style={styles.input}
           placeholderTextColor={Colors.textMuted}
           selectionColor={Colors.primary}
           {...props}
         />
+        {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
       </View>
       
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -63,6 +68,9 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 10,
+  },
+  rightIcon: {
+    marginLeft: 10,
   },
   errorBorder: {
     borderColor: Colors.danger,
