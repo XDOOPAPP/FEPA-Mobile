@@ -3,9 +3,10 @@ export interface Blog {
   title: string;
   slug: string;
   content: string;
+  summary?: string;
   thumbnailUrl?: string;
-  authorId?: string;
-  authorName?: string;
+  images?: string[];
+  author?: string; // Tên hiển thị của tác giả
   category?: string;
   tags?: string[];
   status: 'draft' | 'pending' | 'published' | 'rejected';

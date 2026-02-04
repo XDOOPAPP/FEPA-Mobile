@@ -214,8 +214,8 @@ const PremiumScreen: React.FC = ({ navigation }: any) => {
             ))}
           </GlassCard>
 
-          {/* AI Settings Shortcut */}
-          {!isAuthenticated ? null : (
+          {/* AI Settings Shortcut - ONLY FOR PREMIUM */}
+          {(!isAuthenticated || !authContext?.isPremium) ? null : (
             <TouchableOpacity 
               style={styles.aiSetupBox}
               onPress={() => navigation.navigate('Profile')}
@@ -301,36 +301,7 @@ const PremiumScreen: React.FC = ({ navigation }: any) => {
             </TouchableOpacity>
           )}
 
-          {/* Demo Premium Section - For testing without backend */}
-          {isAuthenticated && (
-            <View style={styles.demoSection}>
-              <Text style={styles.demoTitle}>🧪 Chế độ Demo (Dev Only)</Text>
-              {authContext?.isDemoPremium ? (
-                <TouchableOpacity 
-                  style={styles.demoBtnDeactivate}
-                  onPress={() => {
-                    authContext?.deactivateDemoPremium();
-                    Alert.alert('Demo Premium', 'Đã tắt chế độ Premium demo.');
-                  }}
-                >
-                  <Ionicons name="close-circle" size={18} color="#FFF" />
-                  <Text style={styles.demoBtnText}>Tắt Demo Premium</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity 
-                  style={styles.demoBtnActivate}
-                  onPress={() => {
-                    authContext?.activateDemoPremium();
-                    Alert.alert('Demo Premium', 'Đã kích hoạt Premium demo! Tất cả tính năng Premium giờ đã mở.');
-                  }}
-                >
-                  <Ionicons name="flash" size={18} color="#FFF" />
-                  <Text style={styles.demoBtnText}>Kích hoạt Demo Premium</Text>
-                </TouchableOpacity>
-              )}
-              <Text style={styles.demoNote}>Lưu local, không cần backend payment</Text>
-            </View>
-          )}
+
           
           {isProcessing && (
             <View style={styles.globalLoader}>
@@ -623,52 +594,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#D97706',
   },
-  // Demo Premium Styles
-  demoSection: {
-    marginTop: 30,
-    padding: 20,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderStyle: 'dashed',
-  },
-  demoTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400E',
-    marginBottom: 12,
-  },
-  demoBtnActivate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#10B981',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  demoBtnDeactivate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  demoBtnText: {
-    color: '#FFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  demoNote: {
-    marginTop: 10,
-    fontSize: 11,
-    color: '#92400E',
-    fontStyle: 'italic',
-  },
+
 });
 
 export default PremiumScreen;

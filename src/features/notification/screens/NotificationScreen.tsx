@@ -12,13 +12,14 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, Spacing, Radius, Shadow } from '../../../constants/theme';
+import { Colors, Spacing, Radius, Shadow, Typography } from '../../../constants/theme';
 import { 
   getNotificationsApi, 
   markReadApi, 
   markAllReadApi, 
   Notification 
 } from '../services/NotificationService';
+import { aiRepository } from '../../../core/repositories/AiRepository';
 
 const NotificationScreen = () => {
   const navigation = useNavigation();
@@ -29,26 +30,51 @@ const NotificationScreen = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
+  const [aiInsight, setAiInsight] = useState<string>('');
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const generateAiInsight = async (items: Notification[]) => {
+    if (items.length === 0) return;
+    setLoadingAi(true);
+    try {
+      const summaryText = items.slice(0, 5).map(n => `- ${n.title}: ${n.message}`).join('\n');
+      const res = await aiRepository.assistantChat({ 
+        message: `Đây là các thông báo gần đây của người dùng:\n${summaryText}\n\nHãy tóm tắt ngắn gọn thành 1 câu lời khuyên hoặc nhận xét tài chính thân thiện bằng tiếng Việt.` 
+      });
+      setAiInsight(res.reply);
+    } catch (e) {
+      console.error(e);
+      setAiInsight('Hãy kiểm tra các thông báo bên dưới để cập nhật tình hình tài chính của bạn.');
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
   const loadNotifications = async (pageNum: number, shouldRefresh = false) => {
     try {
       if (pageNum === 1) setLoading(true);
       
+      console.log('[NotificationScreen] Fetching page:', pageNum);
       const res = await getNotificationsApi(pageNum, 20);
-      const newItems = res.data || []; // Adjust based on actual backend response structure (res.data.data vs res.data)
-      // Assuming res.data IS the array based on common patterns, or adjust if it is { data: [], meta: {} }
-      // Based on service type definition above, it's NotificationResponse.data
+      console.log('[NotificationScreen] API Response Data Length:', res.data?.length || 0);
+      
+      const newItems = res.data || [];
       
       if (shouldRefresh) {
          setNotifications(newItems);
+         if (newItems.length > 0) generateAiInsight(newItems);
       } else {
          setNotifications(prev => [...prev, ...newItems]);
       }
 
       setHasMore(newItems.length >= 20);
 
-    } catch (error) {
-      console.error('Failed to load notifications', error);
-      // Silent fail or toast
+    } catch (error: any) {
+      console.error('[NotificationScreen] Failed to load:', error);
+      // Only alert on initial load failure
+      if (pageNum === 1) {
+         Alert.alert('Lỗi', 'Không thể tải thông báo. Vui lòng thử lại sau.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -79,11 +105,13 @@ const NotificationScreen = () => {
     if (item.isRead) return;
     
     // Optimistic update
-    setNotifications(prev => prev.map(n => n._id === item._id ? { ...n, isRead: true } : n));
+    setNotifications(prev => prev.map(n => (n._id === item._id || (n.id && n.id === item.id)) ? { ...n, isRead: true } : n));
+    
     try {
-        await markReadApi(item._id);
+        const idToMark = item._id || item.id;
+        if (idToMark) await markReadApi(idToMark);
     } catch (error) {
-        console.error('Mark read failed');
+        console.warn('[NotificationScreen] Mark read failed for ID:', item._id);
     }
   };
 
@@ -104,15 +132,36 @@ const NotificationScreen = () => {
       ]);
   }
 
+  const renderAiSummary = () => {
+    if (!aiInsight && !loadingAi) return null;
+    return (
+      <View style={styles.aiSummaryContainer}>
+        <View style={styles.aiHeader}>
+          <View style={styles.aiTitleRow}>
+            <Ionicons name="sparkles" size={18} color="#8B5CF6" />
+            <Text style={styles.aiTitle}>Tóm tắt thông minh bởi AI</Text>
+          </View>
+        </View>
+        <View style={styles.aiContent}>
+          {loadingAi ? (
+            <ActivityIndicator size="small" color="#8B5CF6" />
+          ) : (
+            <Text style={styles.aiText}>{aiInsight}</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   const renderItem = ({ item }: { item: Notification }) => (
     <TouchableOpacity 
         style={[styles.itemCard, !item.isRead && styles.unreadCard]} 
         onPress={() => handleMarkRead(item)}
         activeOpacity={0.7}
     >
-        <View style={[styles.iconContainer, { backgroundColor: !item.isRead ? Colors.primarySoft : '#F3F4F6' }]}>
+        <View style={[styles.iconContainer, { backgroundColor: !item.isRead ? '#F0F9FF' : '#F8FAFC' }]}>
             <Ionicons 
-                name={item.type === 'PAYMENT' ? 'card' : 'notifications'} 
+                name={item.type === 'PAYMENT' ? 'card' : item.type === 'BUDGET' ? 'pie-chart' : 'notifications'} 
                 size={20} 
                 color={!item.isRead ? Colors.primary : Colors.textMuted} 
             />
@@ -147,6 +196,7 @@ const NotificationScreen = () => {
                 renderItem={renderItem}
                 keyExtractor={item => item._id}
                 contentContainerStyle={styles.listContent}
+                ListHeaderComponent={renderAiSummary}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
                 onEndReached={handleLoadMore}
                 onEndReachedThreshold={0.5}
@@ -242,6 +292,38 @@ const styles = StyleSheet.create({
       backgroundColor: Colors.primary,
       alignSelf: 'center',
       marginLeft: 4,
+  },
+  aiSummaryContainer: {
+    backgroundColor: '#F5F3FF',
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#E9E3FF',
+  },
+  aiHeader: {
+    marginBottom: 8,
+  },
+  aiTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiTitle: {
+    ...Typography.smallBold,
+    color: '#7C3AED',
+    marginLeft: 6,
+    textTransform: 'uppercase',
+  },
+  aiContent: {
+    minHeight: 20,
+    justifyContent: 'center',
+  },
+  aiText: {
+    ...Typography.body,
+    color: '#4B5563',
+    lineHeight: 20,
+    fontSize: 14,
+    fontStyle: 'italic',
   },
   emptyContainer: {
       alignItems: 'center',

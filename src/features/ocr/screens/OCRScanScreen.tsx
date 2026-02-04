@@ -44,8 +44,9 @@ const OCRScanScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   const authContext = useContext(AuthContext);
-  const { scanInvoice, refreshJobStatus } = useOcr(authContext?.userToken || null);
+  const { scanInvoice, refreshJobStatus, state: ocrState, setError: setOcrError } = useOcr(authContext?.userToken || null);
   const { setCurrentOcrResult } = useOCR();
+  const ocrError = ocrState?.error;
 
   // Camera State
   const device = useCameraDevice('back');
@@ -62,6 +63,7 @@ const OCRScanScreen: React.FC = () => {
   const [isActive, setIsActive] = useState(true);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const isTakingPhotoRef = useRef(false);
+  const isProcessingQr = useRef(false);
 
   // App State
   const [isScanning, setIsScanning] = useState(false);
@@ -85,9 +87,13 @@ const OCRScanScreen: React.FC = () => {
   });
 
   const handleQRCode = async (data: string) => {
-    // If it looks like a financial QR (VietQR / VNPay), auto-capture
-    if (data.startsWith('000201') || data.includes('|')) {
-      console.log('[QR] Detected financial QR, auto-capturing...');
+    if (isProcessingQr.current || isScanning) return;
+
+    // Nếu phát hiện QR tài chính (VietQR, VNPay) hoặc QR hóa đơn (|), tự động chụp ảnh để gửi lên Server xử lý
+    // Theo quy trình: Mobile chụp -> Server parse QR -> Trả kết quả
+    if (data.includes('000201') || data.includes('|')) {
+      console.log('[QR] Detected potential financial QR, triggering auto-capture...');
+      isProcessingQr.current = true;
       takePhoto();
     }
   };
@@ -111,6 +117,14 @@ const OCRScanScreen: React.FC = () => {
         });
       };
     }
+  }, [navigation]);
+
+  // Reset isProcessingQr when screen gains focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+       isProcessingQr.current = false;
+    });
+    return unsubscribe;
   }, [navigation]);
 
   // Request Permission
@@ -159,7 +173,7 @@ const OCRScanScreen: React.FC = () => {
     };
   }, [startScanAnimation]);
 
-  // Active state management: Keep camera alive while focused 
+  // Active state management: Keep camera alive while focused
   // to avoid "Camera is closed" errors during capture transitions.
   useEffect(() => {
     setIsActive(isFocused);
@@ -171,15 +185,15 @@ const OCRScanScreen: React.FC = () => {
       try {
         isTakingPhotoRef.current = true;
         console.log('[OCR] Taking photo...');
-        
+
         const photo = await camera.current.takePhoto({
           flash: device?.hasFlash ? flash : 'off',
           enableShutterSound: false,
         });
-        
+
         const path = Platform.OS === 'android' ? `file://${photo.path}` : photo.path;
         console.log('[OCR] Photo captured successfully:', path);
-        
+
         setCapturedImage(path);
         // We handleScan AFTER setting captured image to let UI update
         setTimeout(() => handleScan(path), 100);
@@ -190,8 +204,8 @@ const OCRScanScreen: React.FC = () => {
         isTakingPhotoRef.current = false;
       }
     } else {
-      console.warn('[OCR] Camera not ready or active, or already taking photo', { 
-        isCameraReady, isActive, isTakingPhoto: isTakingPhotoRef.current 
+      console.warn('[OCR] Camera not ready or active, or already taking photo', {
+        isCameraReady, isActive, isTakingPhoto: isTakingPhotoRef.current
       });
     }
   };
@@ -204,10 +218,12 @@ const OCRScanScreen: React.FC = () => {
       });
 
       if (result.assets && result.assets[0]) {
-        const uri = result.assets[0].uri || '';
-        console.log('[OCR Screen] Picked image URI:', uri);
+        const asset = result.assets[0];
+        const uri = asset.uri || '';
+        const mimeType = asset.type || 'image/jpeg';
+        console.log('[OCR Screen] Picked image URI:', uri, 'Mime:', mimeType);
         setCapturedImage(uri);
-        handleScan(uri);
+        handleScan(uri, mimeType);
       }
     } catch (error) {
        Alert.alert('Lỗi', 'Không thể chọn ảnh từ thư viện');
@@ -216,69 +232,59 @@ const OCRScanScreen: React.FC = () => {
 
   const takePhotoNew = takePhoto; // Alias for internal usage if needed
 
-  const handleScan = async (uri: string) => {
+  const handleScan = async (uri: string, mimeType: string = 'image/jpeg') => {
     try {
       setIsScanning(true);
-      console.log('[OCR Screen] Starting scan...');
+      setOcrError(null);
       
-      const job = await scanInvoice(uri);
-      
-      // Nếu job null, lấy lỗi từ state của ViewModel hoặc báo lỗi mặc định
+      const userId = authContext?.user?.id || '';
+
+      // --- BƯỚC 1: TẢI ẢNH LÊN ocr/scan ĐỂ LẤY ID JOB ---
+      console.log('[OCR] STEP 1: Uploading image to ocr/scan');
+      const job = await scanInvoice(uri, userId, mimeType);
+
       if (!job || !job.id) {
-        throw new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra địa chỉ IP.');
+        throw new Error('Không nhận được Job ID từ server.');
       }
 
-      let attempts = 0;
-      let currentJob = job;
+      // --- BƯỚC 2: GỌI ocr/jobs/id-job ĐỂ LẤY DATA EXPENSE (POLLING) ---
+      console.log(`[OCR] STEP 2: Polling ocr/jobs/${job.id} for result`);
       
-      // Polling Logic: Kiểm tra trạng thái mỗi 2 giây
-      while (attempts < 20) {
+      let currentJob = job;
+      let attempts = 0;
+      const MAX_ATTEMPTS = 30; // 60 giây tối đa
+
+      while (attempts < MAX_ATTEMPTS) {
         if (currentJob.status === 'completed') {
-          console.log('[OCR Screen] Scan completed successfully');
+          console.log('[OCR] STEP 3: Job completed! Extracting data...');
           setIsScanning(false);
           
-          const result = currentJob.resultJson as any;
-          const expenseData = result?.expenseData || {};
+          // Lưu kết quả vào context để màn hình tiếp theo sử dụng
+          setCurrentOcrResult(currentJob); 
           
-          const jobData = {
-            id: String(currentJob.id || ''),
-            status: 'completed',
-            fileUrl: currentJob.fileUrl,
-            resultJson: {
-              expenseData: {
-                amount: Number(expenseData.amount) || 0,
-                category: String(expenseData.category || 'other'),
-                description: String(expenseData.description || 'Hóa đơn OCR').substring(0, 100),
-                spentAt: expenseData.spentAt || new Date().toISOString(),
-                confidence: Number(expenseData.confidence) || 0,
-                source: expenseData.source === 'qr' ? 'qr' : 'ocr',
-                ocrJobId: currentJob.id,
-              },
-            },
-          };
-          
-          setCurrentOcrResult(jobData as any);
+          // --- BƯỚC 4: HIỆN DATA VÀO FORM (CHUYỂN MÀN HÌNH) ---
           navigation.navigate('OCRResult');
           return;
         }
 
-        if (currentJob.status === 'failed') throw new Error('Hệ thống không nhận diện được hóa đơn này');
+        if (currentJob.status === 'failed') {
+          throw new Error(currentJob.errorMessage || 'Server báo lỗi xử lý hóa đơn.');
+        }
 
-        // Chờ 2 giây
-        await new Promise<void>(resolve => setTimeout(resolve, 2000));
+        console.log(`[OCR] Polling... Lượt ${attempts + 1}/${MAX_ATTEMPTS}`);
+        await new Promise<void>(r => setTimeout(() => r(), 2000));
         
         const updated = await refreshJobStatus(job.id);
-        if (!updated) continue;
-        currentJob = updated;
-
-        console.log(`[OCR Screen] Polling: ${currentJob.status}`);
+        if (updated) currentJob = updated;
         attempts++;
       }
-      throw new Error('Hết thời gian chờ. Bạn có thể kiểm tra kết quả trong lịch sử sau.');
+      
+      throw new Error('Hết thời gian chờ xử lý (Time out).');
       
     } catch (error: any) {
+      console.error('[OCR Flow Error]:', error);
       setIsScanning(false);
-      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra trong quá trình quét');
+      Alert.alert('Lỗi Quét Hóa Đơn', error.message || 'Một lỗi không xác định đã xảy ra.');
     }
   };
 

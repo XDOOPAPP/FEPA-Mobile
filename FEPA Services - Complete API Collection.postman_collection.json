@@ -1,0 +1,2721 @@
+{
+  "info": {
+    "_postman_id": "d915c91d-acfc-4224-ace4-77c750c98b3a",
+    "name": "FEPA Services - Complete API Collection",
+    "description": "Comprehensive Postman collection for testing all FEPA microservices endpoints on VPS (76.13.21.84). Includes all discovered endpoints from Auth, Expense, Budget, Blog, Subscription, Notification, OCR, AI, and Payment services.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "42986888"
+  },
+  "item": [
+    {
+      "name": "0. Setup & Health Checks",
+      "item": [
+        {
+          "name": "API Gateway Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/health",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Auth Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/health",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. AUTH SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@test.com\",\n  \"password\": \"Password@123\",\n  \"name\": \"Test User\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/register",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@test.com\",\n  \"password\": \"Password@123\",\n  \"name\": \"Admin User\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/register-admin",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register-admin"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.token) {",
+                  "        pm.environment.set('JWT_TOKEN', jsonData.data.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@test.com\",\n  \"password\": \"Password@123\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/login",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@test.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/verify-otp",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@test.com\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/resend-otp",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "resend-otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/me",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/logout",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Updated Name",
+                  "type": "text"
+                },
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "value": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/update-profile",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "update-profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your-refresh-token\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/refresh",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"OldPassword@123\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/change-password",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@test.com\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/forgot-password",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "forgot-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/reset-password",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{JWT_TOKEN}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/verify",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update FCM Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"your-fcm-token\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/fcm-token",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "fcm-token"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Admins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/all-admin",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "all-admin"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/users",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/users/user-id",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "users",
+                "user-id"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/users/user-id/deactivate",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "users",
+                "user-id",
+                "deactivate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivate User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/users/user-id/reactivate",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "users",
+                "user-id",
+                "reactivate"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Users Over Time Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/stats/users-over-time?period=30",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "stats",
+                "users-over-time"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "30"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Total Users Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/auth/stats/total",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "stats",
+                "total"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. EXPENSE SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Create Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Lunch at restaurant\",\n  \"amount\": 50.00,\n  \"category\": \"food\",\n  \"spentAt\": \"2026-01-25\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/summary",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "summary"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 75.00,\n  \"description\": \"Updated lunch\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expenses by Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/category/FOOD",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "category",
+                "FOOD"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/categories",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Expense Admin Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/admin/stats",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. BUDGET SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Create Budget",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Monthly Food Budget\",\n  \"category\": \"food\",\n  \"limitAmount\": 500,\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2026-01-31\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Budgets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Budget by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limitAmount\": 600\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Budget",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Budget Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets/1/progress",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets",
+                "1",
+                "progress"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Budget Admin Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/budgets/admin/stats",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "budgets",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. BLOG SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Create Blog",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Getting Started with FEPA\",\n  \"slug\": \"getting-started-with-fepa\",\n  \"content\": \"This is a comprehensive guide\",\n  \"status\": \"draft\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Blogs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Blogs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/my-blogs",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "my-blogs"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Blog by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/slug/getting-started-with-fepa",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "slug",
+                "getting-started-with-fepa"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Blog by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Blog",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"content\": \"Updated content\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Blog",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Blog for Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/1/submit",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "1",
+                "submit"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Blog (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/1/approve",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "1",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Blog (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejectionReason\": \"Content not appropriate\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/1/reject",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "1",
+                "reject"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Single Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "value": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/upload/single",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "upload",
+                "single"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Multiple Images",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "value": null
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/upload/multiple",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "upload",
+                "multiple"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Blog Statistics by Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/statistics/status",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "statistics",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Monthly Blog Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/blogs/statistics/monthly?year=2026",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "blogs",
+                "statistics",
+                "monthly"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2026"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. SUBSCRIPTION SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Get All Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/plans",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plan Detail by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/plans/premium",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "premium"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current Subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/current",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "current"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Subscribe to Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"premium\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/cancel",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "cancel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Subscription History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/history",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "history"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Features",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/features",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "features"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Plan (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Premium Plus\",\n  \"description\": \"Premium plan with advanced features\",\n  \"price\": 99.99,\n  \"duration\": 30,\n  \"features\": {\"AI\": true, \"OCR\": true, \"AdvancedAnalytics\": true}\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/plans",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Plan (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 109.99\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/plans/premium",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "premium"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Plan (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/plans/premium",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans",
+                "premium"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Subscription Admin Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/admin/stats",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue Over Time Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/stats/revenue-over-time",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "stats",
+                "revenue-over-time"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Total Revenue Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/stats/total-revenue",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "stats",
+                "total-revenue"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Revenue by Plan Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/subscriptions/stats/revenue-by-plan",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "stats",
+                "revenue-by-plan"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. NOTIFICATION SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Create Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user-id-here\",\n  \"title\": \"Test Notification\",\n  \"message\": \"This is a test notification\",\n  \"type\": \"BUDGET_ALERT\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications/unread-count",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "unread-count"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications/1/read",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "1",
+                "read"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications/read-all",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "read-all"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications/1",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete All Notifications",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/notifications",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. OCR SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Scan Invoice (QR/OCR)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "value": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ocr/scan",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ocr",
+                "scan"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get OCR Job History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ocr/jobs",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ocr",
+                "jobs"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Specific Job Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ocr/jobs/job-id",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ocr",
+                "jobs",
+                "job-id"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get OCR Admin Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ocr/admin/stats",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ocr",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. AI SERVICE (Port 3000)",
+      "item": [
+        {
+          "name": "Auto-Categorize Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Lunch at pizza restaurant\",\n  \"amount\": 15.99\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/categorize",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "categorize"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Predict Spending",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/predict-spending?period=30",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "predict-spending"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "30"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Detect Anomalies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/anomalies",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "anomalies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Budget Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/budget-alerts",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "budget-alerts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chat with AI Assistant (Gemini 2.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"How can I reduce my food spending?\",\n  \"includeContext\": true\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/assistant/chat",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "assistant",
+                "chat"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Financial Insights",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/insights?period=monthly",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "insights"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "monthly"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get AI Admin Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/ai/admin/stats",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. PAYMENT SERVICE (Port 3101)",
+      "item": [
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"premium\",\n  \"amount\": 99.99,\n  \"returnUrl\": \"http://{{VPS_IP}}:3000/payment/success\"\n}"
+            },
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/payments",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "VNPay IPN Callback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/payments/vnpay/ipn?vnp_Amount=100000&vnp_TransactionNo=123456",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "vnpay",
+                "ipn"
+              ],
+              "query": [
+                {
+                  "key": "vnp_Amount",
+                  "value": "100000"
+                },
+                {
+                  "key": "vnp_TransactionNo",
+                  "value": "123456"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Status by Reference",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/payments/PAY-123456",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "PAY-123456"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. EXPENSE CATEGORIES",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{JWT_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "http://{{VPS_IP}}:3000/api/v1/expenses/categories",
+              "protocol": "http",
+              "host": [
+                "{{VPS_IP}}"
+              ],
+              "port": "3000",
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "categories"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "VPS_IP",
+      "value": "76.13.21.84",
+      "type": "string"
+    },
+    {
+      "key": "JWT_TOKEN",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

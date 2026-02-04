@@ -1,80 +1,87 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { axiosInstance } from '../../api/axiosInstance';
-import { API_ENDPOINTS, API_BASE_URL } from '../../constants/api';
+import { API_BASE_URL, API_ENDPOINTS } from '../../constants/api';
 import { OcrJob } from '../models/Ocr';
 
 class OcrRepository {
-  private apiClient = axiosInstance;
-
-  /**
-   * Scan Invoice - Gửi FILE chuẩn qua Multipart/form-data dùng XHR
-   */
-  async scanInvoice(fileUri: string): Promise<OcrJob> {
-    console.log('[OCR] === Start scanInvoice (Standard Multipart XHR) ===');
+  
+  async scanInvoice(fileUri: string, userId: string, mimeType: string = 'image/jpeg'): Promise<OcrJob> {
+    console.log('[OCR] === BƯỚC 1: TẢI ẢNH LÊN ocr/scan (Sử dụng XHR) ===');
     
     const token = await AsyncStorage.getItem('userToken');
     const url = `${API_BASE_URL}${API_ENDPOINTS.OCR_SCAN}`;
+    
+    // Chuẩn hóa URI cho Android
+    const cleanUri = Platform.OS === 'android' && !fileUri.startsWith('file://') 
+      ? `file://${fileUri}` 
+      : fileUri;
 
-    // Xử lý URI: Nếu là base64 thì không được, phải là đường dẫn file
-    let cleanUri = fileUri;
-    if (cleanUri.startsWith('data:')) {
-       // Nếu lỡ nhận base64 từ gallery, chúng ta phải dùng cách khác hoặc báo lỗi. 
-       // Nhưng tốt nhất là Screen nên gửi URI file://
-       console.warn('[OCR] Warning: Received base64, converting back to file is needed for standard upload');
-    }
+    const formData = new FormData();
+    const fileName = fileUri.split('/').pop() || 'receipt.jpg';
 
-    if (Platform.OS === 'android' && !cleanUri.startsWith('file://') && !cleanUri.startsWith('content://')) {
-      cleanUri = `file://${cleanUri}`;
-    }
+    // @ts-ignore
+    formData.append('file', {
+      uri: cleanUri,
+      name: fileName,
+      type: mimeType,
+    });
+    formData.append('userId', userId || 'unknown');
+    formData.append('it-user-id', userId || 'unknown');
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url);
-      
+
+      // Cài đặt Headers
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.setRequestHeader('Accept', 'application/json');
-      // KHÔNG set Content-Type
+      xhr.setRequestHeader('it-user-id', userId || 'unknown');
 
       xhr.onload = () => {
-        console.log('[OCR] Response Status:', xhr.status);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const res = JSON.parse(xhr.responseText);
-            resolve(res.data || res);
-          } catch (e) {
-            reject(new Error('JSON Parse Error'));
+        console.log('[OCR] XHR Status:', xhr.status);
+        console.log('[OCR] XHR Response:', xhr.responseText);
+        
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(response.data || response);
+          } else {
+            reject(new Error(response.message || `Server trả lỗi ${xhr.status}`));
           }
-        } else {
-          try {
-            const err = JSON.parse(xhr.responseText);
-            reject(new Error(err.message || `Lỗi server ${xhr.status}`));
-          } catch (e) {
-            reject(new Error(`Server error ${xhr.status}`));
-          }
+        } catch (e) {
+          reject(new Error('Server không trả về JSON hợp lệ'));
         }
       };
 
-      xhr.onerror = () => reject(new Error('Network Error - Kiểm tra kết nối mạng'));
+      xhr.onerror = (e) => {
+        console.error('[OCR] XHR Network Error:', e);
+        reject(new Error('Network Error: Không thể kết nối tới Server. Hãy thử dùng 4G thay vì Wifi hoặc kiểm tra IP Server.'));
+      };
 
-      const formData = new FormData();
-      const filename = cleanUri.split('/').pop() || 'invoice.jpg';
-      
-      // ĐÂY LÀ PHẦN QUAN TRỌNG NHẤT ĐỂ TRÁNH LỖI "FIELD VALUE TOO LONG"
-      formData.append('file', {
-        uri: cleanUri,
-        name: filename,
-        type: 'image/jpeg',
-      } as any);
+      xhr.ontimeout = () => {
+        reject(new Error('Hết thời gian chờ (Timeout). File ảnh có thể quá lớn.'));
+      };
 
-      console.log('[OCR] Sending file:', filename);
+      xhr.timeout = 60000; // 60 giây
       xhr.send(formData);
     });
   }
 
   async getJob(jobId: string): Promise<OcrJob> {
-    const response = await this.apiClient.get(API_ENDPOINTS.OCR_JOB(jobId));
-    return response.data?.data || response.data;
+    const token = await AsyncStorage.getItem('userToken');
+    const url = `${API_BASE_URL}${API_ENDPOINTS.OCR_JOB(jobId)}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Lỗi lấy thông tin Job');
+    return result.data || result;
   }
 }
 

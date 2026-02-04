@@ -60,7 +60,6 @@ const DashboardScreen: React.FC = () => {
       confidence: number;
     }>;
   } | null>(null);
-  const [predicting, setPredicting] = useState(false);
   const [periods, setPeriods] = useState<ExpenseSummaryPeriod[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -79,14 +78,20 @@ const DashboardScreen: React.FC = () => {
   }, []);
 
   const handlePredict = async () => {
-    setPredicting(true);
     setPredictResult(null);
     try {
+      console.log('[Dashboard] Running AI Predict for:', predictMonth);
       const res = await predictSpending({ month: predictMonth });
       setPredictResult(res);
+      if (!res?.predictions || res.predictions.length === 0) {
+        Alert.alert('Thông báo', 'AI chưa có đủ dữ liệu chi tiêu các tháng trước để đưa ra dự báo chính xác cho tháng này.');
+      }
     } catch (err: any) {
+      console.error('[Dashboard] AI Predict Error:', err);
       setPredictResult(null);
-      if (err.message?.includes('Premium') || err.response?.status === 403) {
+      
+      const status = err.response?.status;
+      if (status === 403 || err.message?.includes('Premium')) {
          Alert.alert(
            'Yêu cầu Premium', 
            'Tính năng dự báo chi tiêu bằng AI chỉ dành cho thành viên Premium.',
@@ -95,9 +100,9 @@ const DashboardScreen: React.FC = () => {
              { text: 'Nâng cấp ngay', onPress: () => navigation.navigate('Profile', { screen: 'Premium' }) }
            ]
          );
+      } else {
+        Alert.alert('Lỗi AI', 'Không thể kết nối với dịch vụ dự báo AI. Vui lòng thử lại sau.');
       }
-    } finally {
-      setPredicting(false);
     }
   };
 
@@ -140,21 +145,21 @@ const DashboardScreen: React.FC = () => {
 
   // Chart Logic
   const points = useMemo(() => {
-    if (periods.length === 0) return [];
+    if (!Array.isArray(periods) || periods.length === 0) return [];
     
     // Normalize logic for simplified chart
-    const values = periods.map(p => p.total);
+    const values = periods.map(p => p?.total || 0);
     const max = Math.max(...values, 1);
     const min = Math.min(...values);
     
-    return values.map((val, idx) => ({
+    return values.map((val) => ({
       val,
       ratio: (val - min) / (max - min || 1)
     }));
   }, [periods]);
 
-  const latest = periods[periods.length - 1]?.total || 0;
-  const prev = periods.length > 1 ? periods[periods.length - 2].total : 0;
+  const latest = Array.isArray(periods) && periods.length > 0 ? periods[periods.length - 1]?.total || 0 : 0;
+  const prev = Array.isArray(periods) && periods.length > 1 ? periods[periods.length - 2]?.total : 0;
   const diff = latest - prev;
 
   const greetingName = authContext?.user?.fullName?.split(' ')[0] || 'Member';
@@ -176,17 +181,23 @@ const DashboardScreen: React.FC = () => {
             <Text style={styles.greetingSub}>Chào buổi tối,</Text>
             <Text style={styles.greetingTitle}>{greetingName}</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <TouchableOpacity 
-              style={styles.bellButton}
-              onPress={() => navigation.navigate('Notifications')}
+              style={[styles.bellButton, { padding: 12 }]}
+              onPress={() => {
+                console.log('[Dashboard] Bell pressed, navigating to Notifications');
+                navigation.navigate('Notifications');
+              }}
+              activeOpacity={0.5}
             >
-               <Ionicons name="notifications-outline" size={26} color={Colors.textPrimary} />
-               {unreadCount > 0 && (
-                  <View style={styles.badge}>
-                     <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                  </View>
-               )}
+               <View style={styles.notificationIconWrapper}>
+                 <Ionicons name="notifications" size={24} color={Colors.primary} />
+                 {unreadCount > 0 && (
+                    <View style={styles.badge}>
+                       <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                    </View>
+                 )}
+               </View>
             </TouchableOpacity>
 
             <TouchableOpacity 
@@ -200,10 +211,10 @@ const DashboardScreen: React.FC = () => {
                  />
                ) : (
                  <LinearGradient
-                    colors={Colors.primaryGradient}
+                    colors={['#E0F2FE', '#BAE6FD']}
                     style={styles.avatarGradient}
                  >
-                    <Text style={styles.avatarText}>{greetingName[0]}</Text>
+                    <Text style={styles.avatarInitial}>{greetingName[0]}</Text>
                  </LinearGradient>
                )}
             </TouchableOpacity>
@@ -275,20 +286,20 @@ const DashboardScreen: React.FC = () => {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={styles.sectionTitle}>AI Dự báo</Text>
                 <TouchableOpacity 
-                   style={{ marginLeft: 8 }} 
+                   style={{ marginLeft: 6 }} 
                    onPress={() => navigation.navigate('AiInsights')}
                 >
-                   <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
+                   <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={handlePredict} disabled={predicting}>
+              <TouchableOpacity onPress={handlePredict} disabled={aiLoading}>
                  <Text style={styles.linkText}>
-                    {predicting ? 'Đang chạy...' : 'Chạy dự báo'}
+                    {aiLoading ? 'Đang chạy...' : 'Chạy dự báo'}
                  </Text>
               </TouchableOpacity>
            </View>
            
-           <GlassCard>
+           <GlassCard style={styles.aiCard}>
               <Text style={styles.aiMonth}>Tháng {predictMonth}</Text>
               
               {hasPredictions ? (
@@ -304,8 +315,12 @@ const DashboardScreen: React.FC = () => {
                     ))}
                  </View>
               ) : (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                    <Ionicons name="analytics-outline" size={48} color={Colors.primaryLight} style={{ marginBottom: 12 }} />
+                <View style={styles.aiPlaceholder}>
+                    <View style={styles.chartIconContainer}>
+                        <Ionicons name="stats-chart" size={40} color={Colors.primaryLight} />
+                        <View style={styles.chartDot1} />
+                        <View style={styles.chartDot2} />
+                    </View>
                     <Text style={styles.placeholderText}>
                        Nhấn "Chạy dự báo" để xem AI phân tích xu hướng chi tiêu tháng này của bạn.
                     </Text>
@@ -322,80 +337,57 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         {/* Latest Blog Post */}
-        {blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published').length > 0 && (
-          <View style={styles.section}>
-             <View style={styles.rowBetween}>
-                <Text style={styles.sectionTitle}>Kiến thức tài chính</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Blog')}>
-                   <Text style={styles.linkText}>Xem tất cả</Text>
-                </TouchableOpacity>
-             </View>
-             <TouchableOpacity 
-               activeOpacity={0.9}
-               onPress={() => {
-                 const latestBlog = blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0];
-                 navigation.navigate('BlogDetail', { slug: latestBlog.slug });
-               }}
-             >
-                <GlassCard style={styles.blogCard}>
-                   {blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].thumbnailUrl ? (
-                      <Image source={{ uri: blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].thumbnailUrl }} style={styles.blogThumb} />
-                   ) : (
-                      <View style={styles.blogThumbPlaceholder}>
-                         <Ionicons name="newspaper-outline" size={32} color={Colors.primaryLight} />
-                      </View>
-                   )}
-                   <View style={styles.blogInfo}>
-                      <View style={styles.blogMeta}>
-                         <View style={styles.blogBadge}>
-                            <Text style={styles.blogBadgeText}>{blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].category || 'Kiến thức'}</Text>
-                         </View>
-                         <Text style={styles.blogDate}>
-                            {new Date(blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].createdAt).toLocaleDateString('vi-VN')}
-                         </Text>
-                      </View>
-                      <Text style={styles.blogTitle} numberOfLines={2}>
-                         {blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published')[0].title}
-                      </Text>
-                   </View>
-                </GlassCard>
-             </TouchableOpacity>
-          </View>
-        )}
+        {(() => {
+          const publishedBlogs = blogState.blogs.filter(b => b.status?.toString().toLowerCase() === 'published');
+          if (publishedBlogs.length === 0) return null;
+          const latestBlog = publishedBlogs[0];
+          
+          return (
+            <View style={styles.section}>
+               <View style={styles.rowBetween}>
+                  <Text style={styles.sectionTitle}>Kiến thức tài chính</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('Profile', { screen: 'Blog' })}>
+                     <Text style={styles.linkText}>Xem tất cả</Text>
+                  </TouchableOpacity>
+               </View>
+               <TouchableOpacity 
+                 activeOpacity={0.9}
+                 onPress={() => navigation.navigate('Profile', { screen: 'BlogDetail', params: { slug: latestBlog.slug } })}
+               >
+                  <GlassCard style={styles.blogCard}>
+                     {latestBlog.thumbnailUrl ? (
+                        <Image 
+                          source={{ uri: latestBlog.thumbnailUrl }} 
+                          style={styles.blogThumb} 
+                          resizeMode="cover"
+                        />
+                     ) : (
+                        <View style={styles.blogThumbPlaceholder}>
+                           <Ionicons name="newspaper-outline" size={32} color={Colors.primaryLight} />
+                        </View>
+                     )}
+                     <View style={styles.blogInfo}>
+                        <View style={styles.blogMeta}>
+                           <View style={styles.blogBadge}>
+                              <Text style={styles.blogBadgeText}>{latestBlog.category || 'Kiến thức'}</Text>
+                           </View>
+                           <Text style={styles.blogDate}>
+                              {new Date(latestBlog.createdAt).toLocaleDateString('vi-VN')}
+                           </Text>
+                        </View>
+                        <Text style={styles.blogTitle} numberOfLines={2}>
+                           {latestBlog.title}
+                        </Text>
+                     </View>
+                  </GlassCard>
+               </TouchableOpacity>
+            </View>
+          );
+        })()}
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Floating AI Hub */}
-      <View style={styles.floatingHub}>
-         <TouchableOpacity 
-            style={styles.fabMain}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('ExpenseTab', { screen: 'AssistantChat' })}
-         >
-            <LinearGradient
-               colors={['#8B5CF6', '#6366F1']}
-               style={styles.fabGradient}
-            >
-               <Ionicons name="sparkles" size={28} color="#FFF" />
-            </LinearGradient>
-         </TouchableOpacity>
-         
-         <View style={styles.fabOptions}>
-            <TouchableOpacity 
-               style={styles.fabMini} 
-               onPress={() => navigation.navigate('OCRTab')}
-            >
-               <Ionicons name="camera" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-               style={styles.fabMini}
-               onPress={() => navigation.navigate('ExpenseTab', { screen: 'VoiceInput' })}
-            >
-               <Ionicons name="mic" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-         </View>
-      </View>
     </View>
   );
 };
@@ -408,40 +400,40 @@ const styles = StyleSheet.create({
   // ... (keep existing styles)
   floatingHub: {
     position: 'absolute',
-    bottom: 100, // Above TabBar
+    bottom: 110, // Above TabBar
     right: 20,
     alignItems: 'center',
   },
   fabMain: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     ...Shadow.glow,
     zIndex: 10,
+    marginTop: 12,
   },
   fabGradient: {
     flex: 1,
-    borderRadius: 30,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   fabOptions: {
-    position: 'absolute',
-    bottom: 70,
+    alignItems: 'center',
     gap: 12,
   },
   fabMini: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.card,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadow.soft,
+    ...Shadow.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#E0F2FE',
   },
   bgGlow: {
     position: 'absolute',
@@ -473,7 +465,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   bellButton: {
-    marginRight: 16,
     padding: 4,
   },
   badge: {
@@ -574,11 +565,62 @@ const styles = StyleSheet.create({
   linkText: {
     ...Typography.captionBold,
     color: Colors.primary,
+    fontSize: 14,
   },
   aiMonth: {
     ...Typography.h4,
     marginBottom: Spacing.md,
-    color: Colors.accent,
+    color: '#F97316', // Orange 500
+    fontSize: 18,
+  },
+  aiCard: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...Shadow.sm,
+  },
+  aiPlaceholder: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartIconContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartDot1: {
+    position: 'absolute',
+    top: 5,
+    right: -5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primaryLight,
+  },
+  chartDot2: {
+    position: 'absolute',
+    bottom: 5,
+    left: -5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+  },
+  notificationIconWrapper: {
+    backgroundColor: '#F0F9FF',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+  },
+  avatarInitial: {
+    ...Typography.h3,
+    color: Colors.primaryDark,
+    fontWeight: '700',
   },
   aiResult: {
     gap: 12,
@@ -613,7 +655,8 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary, 
     textAlign: 'center',
-    marginHorizontal: 20
+    marginHorizontal: 30,
+    lineHeight: 22,
   },
   errorText: {
     ...Typography.caption,

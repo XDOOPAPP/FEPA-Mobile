@@ -16,12 +16,12 @@ export const useOcrViewModel = () => {
   /**
    * Bắt đầu quét hóa đơn
    */
-  const scanInvoice = async (fileUri: string) => {
+  const scanInvoice = async (fileUri: string, userId: string = '', mimeType?: string) => {
     setLoading(true);
     setError(null);
     setCurrentJob(null);
     try {
-      const job = await ocrRepository.scanInvoice(fileUri);
+      const job = await ocrRepository.scanInvoice(fileUri, userId, mimeType);
       setCurrentJob(job);
       return job;
     } catch (e: any) {

@@ -12,7 +12,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/theme';
@@ -23,9 +23,11 @@ const BlogScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { blogState, getBlogs } = useBlog();
 
-  useEffect(() => {
-    getBlogs();
-  }, [getBlogs]);
+  useFocusEffect(
+    useCallback(() => {
+      getBlogs(true);
+    }, [getBlogs])
+  );
 
   const onRefresh = useCallback(() => {
     getBlogs(true);
@@ -53,7 +55,7 @@ const BlogScreen: React.FC = () => {
                 <Text style={styles.categoryText}>{item.category || 'Tài chính'}</Text>
             </View>
             <Text style={styles.dateText}>
-                {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+                {new Date(item.updatedAt).toLocaleDateString('vi-VN')}
             </Text>
         </View>
 
@@ -67,7 +69,9 @@ const BlogScreen: React.FC = () => {
               </View>
               <View style={[styles.statItem, { marginLeft: 12 }]}>
                   <Ionicons name="time-outline" size={14} color={Colors.textMuted} />
-                  <Text style={styles.statText}>5 phút đọc</Text>
+                  <Text style={styles.statText}>
+                    {Math.max(1, Math.ceil((item.content?.split(' ').length || 0) / 200))} phút đọc
+                  </Text>
               </View>
             </View>
             <View style={styles.readMoreContainer}>

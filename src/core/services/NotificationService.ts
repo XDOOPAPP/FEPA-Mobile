@@ -1,22 +1,58 @@
 import messaging from '@react-native-firebase/messaging';
-import { DeviceEventEmitter, Platform, Alert } from 'react-native';
+import { DeviceEventEmitter, Platform, Alert, PermissionsAndroid } from 'react-native';
 import axiosInstance from '../../api/axiosInstance';
 import { API_ENDPOINTS } from '../../constants/api';
 
 class NotificationService {
-  async requestUserPermission() {
+  async init() {
+    await this.requestUserPermission();
+    if (Platform.OS === 'android') {
+      this.setupBackgroundHandlers();
+    }
+    return this.listenToForegroundNotifications();
+  }
+
+  async requestUserPermission(): Promise<boolean> {
     try {
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        // Log để debug xem tại sao không hiện popup
+        console.log('🔔 Asking specific Android 13+ permission...');
+        const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            {
+                title: "Thông báo từ FEPA",
+                message: "FEPA cần quyền gửi thông báo để nhắc nhở bạn về các khoản chi tiêu quan trọng.",
+                buttonNeutral: "Hỏi lại sau",
+                buttonNegative: "Từ chối",
+                buttonPositive: "Đồng ý"
+            }
+        );
+        console.log('🔔 Android 13+ Permission Result:', granted);
+        
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('🔔 Android 13+ Notification Permission GRANTED');
+          await this.getFcmToken();
+          return true;
+        } else {
+          console.warn('⚠️ Android 13+ Notification Permission DENIED/NEVER_ASK_AGAIN');
+          return false;
+        }
+      }
+
       const authStatus = await messaging().requestPermission();
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
       if (enabled) {
-        console.log('🔔 Firebase Authorization status:', authStatus);
+        console.log('🔔 iOS/Legacy Android Authorization status:', authStatus);
         await this.getFcmToken();
+        return true;
       }
+      return false;
     } catch (error) {
-      console.warn('⚠️ Could not request notification permission (likely Firebase config issue)');
+      console.warn('⚠️ Could not request notification permission:', error);
+      return false;
     }
   }
 
@@ -63,10 +99,11 @@ class NotificationService {
       console.log('📩 Foreground Notification:', remoteMessage);
       
       const notification = {
-        title: remoteMessage.notification?.title || 'Thông báo mới',
-        body: remoteMessage.notification?.body || '',
+        title: remoteMessage.notification?.title || remoteMessage.data?.title || 'Thông báo mới',
+        body: remoteMessage.notification?.body || remoteMessage.data?.body || remoteMessage.data?.message || '',
         data: remoteMessage.data,
         createdAt: new Date().toISOString(),
+        type: remoteMessage.data?.type || 'NORMAL',
       };
 
       // Emit to UI

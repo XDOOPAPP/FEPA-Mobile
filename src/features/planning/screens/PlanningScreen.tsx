@@ -27,7 +27,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   shopping: '#FFABFA',   // Soft Pink
   utilities: '#AC92FF',  // Lavender
   entertainment: '#6EE7B7', // Soft Emerald
-  healthcare: '#FFD166',  // Sunny Yellow
+  health: '#FFD166',  // Sunny Yellow
   other: '#CBD5E1',       // Light Slate
 };
 
@@ -37,7 +37,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   shopping: 'cart-outline',
   utilities: 'flash-outline',
   entertainment: 'film-outline',
-  healthcare: 'medkit-outline',
+  health: 'medkit-outline',
   other: 'grid-outline',
 };
 
@@ -47,7 +47,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   shopping: 'Mua sắm',
   utilities: 'Hóa đơn',
   entertainment: 'Giải trí',
-  healthcare: 'Sức khỏe',
+  health: 'Sức khỏe',
   other: 'Khác',
 };
 
@@ -62,7 +62,7 @@ const normalizeCategory = (value?: string) => {
   if (v.includes('mua') || v.includes('sắm') || v.includes('shopping')) return 'shopping';
   if (v.includes('hóa đơn') || v.includes('tiện ích') || v.includes('utilities')) return 'utilities';
   if (v.includes('giải trí') || v.includes('chơi')) return 'entertainment';
-  if (v.includes('sức khỏe') || v.includes('y tế') || v.includes('thuốc')) return 'healthcare';
+  if (v.includes('sức khỏe') || v.includes('y tế') || v.includes('thuốc')) return 'health';
   
   return 'other';
 };

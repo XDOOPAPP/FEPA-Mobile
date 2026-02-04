@@ -32,7 +32,6 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isPremium: boolean;
   premiumExpiry: string | null;
-  isDemoPremium: boolean;
 
   // Functions
   login: (
@@ -45,6 +44,4 @@ export interface AuthContextType {
   refreshAuthToken: () => Promise<boolean>;
   checkTokenValidity: () => Promise<boolean>;
   updateUser: (userData: User) => void;
-  activateDemoPremium: () => Promise<void>;
-  deactivateDemoPremium: () => Promise<void>;
 }

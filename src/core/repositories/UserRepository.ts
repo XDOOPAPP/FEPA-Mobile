@@ -249,12 +249,24 @@ class UserRepository {
 
   private handleError(error: any): Error {
     // Lấy message từ backend response (check nhiều field phổ biến)
-    const message =
+    let rawMessage =
       error.response?.data?.message ||
       error.response?.data?.error ||
       error.response?.data?.error?.message ||
       error.message ||
       'Có lỗi xảy ra. Vui lòng thử lại.';
+    
+    // Đảm bảo message luôn là string (NestJS có thể trả về array hoặc object)
+    let message: string;
+    if (typeof rawMessage === 'string') {
+      message = rawMessage;
+    } else if (Array.isArray(rawMessage)) {
+      message = rawMessage.join(', ');
+    } else if (typeof rawMessage === 'object') {
+      message = JSON.stringify(rawMessage);
+    } else {
+      message = String(rawMessage);
+    }
     
     // Tạo error mới và giữ lại response để ViewModel có thể check status
     const newError: any = new Error(message);

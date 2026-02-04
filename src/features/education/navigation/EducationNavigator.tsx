@@ -11,6 +11,7 @@ import MyBlogsScreen from '../screens/MyBlogsScreen';
 import CreateBlogScreen from '../screens/CreateBlogScreen';
 import { ProfileNavigator } from '../../profile/navigation/ProfileNavigator';
 import { Colors } from '../../../constants/theme';
+import HelpScreen from '../../profile/screens/HelpScreen';
 
 export type EducationStackParamList = {
   EducationHome: undefined;
@@ -22,6 +23,7 @@ export type EducationStackParamList = {
   Premium: undefined;
   SecuritySettings: undefined;
   TwoFA: { action: 'enable' | 'disable' };
+  Help: undefined;
 };
 
 const Stack = createNativeStackNavigator<EducationStackParamList>();
@@ -49,7 +51,10 @@ const EducationNavigator = () => {
       <Stack.Screen
         name="Blog"
         component={BlogScreen}
-        options={{ title: 'Blog tài chính' }}
+        options={{ 
+          title: 'Blog tài chính',
+          headerShown: false, // Ẩn header mặc định để dùng Custom Header trong BlogScreen
+        }}
       />
       <Stack.Screen
         name="BlogDetail"
@@ -80,6 +85,11 @@ const EducationNavigator = () => {
         name="TwoFA"
         component={TwoFAScreen}
         options={{ title: 'Xác thực 2FA' }}
+      />
+      <Stack.Screen
+        name="Help"
+        component={HelpScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

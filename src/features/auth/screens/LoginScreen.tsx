@@ -25,7 +25,7 @@ import { GlassCard } from '../../../components/design-system/GlassCard';
 
 type RootStackParamList = {
   Login: undefined;
-  Register: undefined;
+  Register: { email?: string; step?: 'info' | 'otp' } | undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
   TwoFactorLogin: { email: string; tempToken: string };
@@ -96,7 +96,68 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         );
       }
     } catch (error: any) {
-      Alert.alert('Đăng nhập thất bại', error.message || 'Đã xảy ra lỗi');
+      // Extract readable error message
+      let errorMsg = 'Đã xảy ra lỗi';
+      
+      // SUPER AGGRESSIVE EXTRACTION
+      let rawMsg = 
+        error?.response?.data?.message || 
+        error?.response?.data?.error?.message || 
+        error?.response?.data?.error ||
+        error?.response?.data ||
+        error?.message || 
+        'Đã xảy ra lỗi';
+      
+      // If rawMsg is an object (common in some API responses), try to find a message field
+      if (typeof rawMsg === 'object' && rawMsg !== null) {
+        rawMsg = (rawMsg as any).message || (rawMsg as any).error || JSON.stringify(rawMsg);
+      }
+      
+      // If rawMsg looks like JSON string, try to parse it
+      if (typeof rawMsg === 'string' && (rawMsg.trim().startsWith('{') || rawMsg.trim().startsWith('['))) {
+        try {
+          const parsed = JSON.parse(rawMsg);
+          if (Array.isArray(parsed)) {
+            rawMsg = parsed.join(', ');
+          } else if (typeof parsed === 'object') {
+            rawMsg = parsed.message || (Array.isArray(parsed.message) ? parsed.message.join(', ') : JSON.stringify(parsed));
+          }
+        } catch (e) {}
+      }
+      
+      errorMsg = String(rawMsg);
+      
+      // Show inline error instead of Alert popup
+      if (errorMsg.includes('email must be') || errorMsg.toLowerCase().includes('email')) {
+        setErrors({ email: 'Email không hợp lệ' });
+      } else if (
+        errorMsg.includes('verified') || 
+        errorMsg.includes('chưa xác thực') ||
+        (error?.response?.status === 400 && errorMsg.includes('Account'))
+      ) {
+        Alert.alert(
+          'Tài khoản chưa xác thực',
+          'Tài khoản này đã được đăng ký nhưng chưa được kích hoạt. Bạn cần xác thực mã OTP trước khi đăng nhập.',
+          [
+            { text: 'Để sau', style: 'cancel' },
+            { 
+              text: 'Xác thực ngay', 
+              onPress: () => navigation.navigate('Register', { email: formData.email, step: 'otp' }) 
+            }
+          ]
+        );
+      } else if (
+        errorMsg.includes('401') || 
+        errorMsg.includes('Unauthorized') || 
+        errorMsg.includes('Invalid') || 
+        errorMsg.includes('credentials') ||
+        errorMsg.includes('status code 400') ||
+        (error?.response?.status === 400 && !errorMsg.toLowerCase().includes('verified'))
+      ) {
+        setErrors({ password: 'Email hoặc mật khẩu không đúng' });
+      } else {
+        setErrors({ password: errorMsg });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +201,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.headerContent}>
             <View style={styles.logoBox}>
                <View style={styles.logoInner}>
-                  <Text style={styles.logoText}>C</Text>
+                  <Text style={styles.logoText}>FE</Text>
                </View>
             </View>
             <Text style={styles.logo}>FEPA</Text>

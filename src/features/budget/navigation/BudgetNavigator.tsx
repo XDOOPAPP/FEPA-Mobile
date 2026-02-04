@@ -28,22 +28,22 @@ export const BudgetNavigator = () => {
       <Stack.Screen
         name="BudgetList"
         component={BudgetListScreen}
-        options={{ title: 'Ngân sách' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="CreateBudget"
         component={CreateBudgetScreen}
-        options={{ title: 'Thêm ngân sách' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="BudgetProgress"
         component={BudgetProgressScreen}
-        options={{ title: 'Tiến độ ngân sách' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="BudgetAlertSettings"
         component={BudgetAlertSettingsScreen}
-        options={{ title: 'Cài đặt cảnh báo' }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

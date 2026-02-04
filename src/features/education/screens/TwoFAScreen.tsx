@@ -54,7 +54,10 @@ const TwoFAScreen: React.FC<Props> = ({ route, navigation }) => {
         });
       }, 1000);
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể gửi OTP');
+      const errorMsg = typeof error === 'string' 
+        ? error 
+        : error?.message || error?.response?.data?.message || 'Không thể gửi OTP';
+      Alert.alert('Lỗi', errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +80,10 @@ const TwoFAScreen: React.FC<Props> = ({ route, navigation }) => {
         },
       ]);
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể xác minh OTP');
+      const errorMsg = typeof error === 'string' 
+        ? error 
+        : error?.message || error?.response?.data?.message || 'Không thể xác minh OTP';
+      Alert.alert('Lỗi', errorMsg);
     } finally {
       setIsLoading(false);
     }

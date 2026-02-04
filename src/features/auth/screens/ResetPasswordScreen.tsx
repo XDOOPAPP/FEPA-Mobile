@@ -85,7 +85,40 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
         ],
       );
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể đặt lại mật khẩu');
+      // Extract readable error message using AGGRESSIVE EXTRACTION
+      let rawMsg = 
+        error?.response?.data?.message || 
+        error?.response?.data?.error?.message || 
+        error?.response?.data?.error ||
+        error?.response?.data ||
+        error?.message || 
+        'Đã xảy ra lỗi';
+      
+      // If rawMsg is an object, try to find a message field
+      if (typeof rawMsg === 'object' && rawMsg !== null) {
+        rawMsg = (rawMsg as any).message || (rawMsg as any).error || JSON.stringify(rawMsg);
+      }
+      
+      // If rawMsg looks like JSON string, try to parse it
+      if (typeof rawMsg === 'string' && (rawMsg.trim().startsWith('{') || rawMsg.trim().startsWith('['))) {
+        try {
+          const parsed = JSON.parse(rawMsg);
+          if (Array.isArray(parsed)) {
+            rawMsg = parsed.join(', ');
+          } else if (typeof parsed === 'object') {
+            rawMsg = parsed.message || (Array.isArray(parsed.message) ? parsed.message.join(', ') : JSON.stringify(parsed));
+          }
+        } catch (e) {}
+      }
+      
+      let errorMsg = String(rawMsg);
+      
+      // Friendly messages for common errors
+      if (errorMsg.includes('otp') || errorMsg.includes('Invalid or expired OTP') || errorMsg.includes('OTP không đúng')) {
+        setErrors({ otp: 'Mã OTP không đúng hoặc đã hết hạn' });
+      } else {
+        Alert.alert('Lỗi', errorMsg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +130,9 @@ const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
       await resendOtp(email);
       Alert.alert('Thành công', 'OTP mới đã được gửi đến email của bạn.');
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể gửi lại OTP');
+      // Extract message here too
+      let rawMsg = error?.response?.data?.message || error?.message || 'Không thể gửi lại OTP';
+      Alert.alert('Lỗi', String(rawMsg));
     } finally {
       setIsLoading(false);
     }

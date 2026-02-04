@@ -11,7 +11,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
 );
 
-const DEMO_PREMIUM_KEY = 'demo_premium_enabled';
+
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userToken, setUserToken] = useState<string | null>(null);
@@ -20,11 +20,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPremiumServer, setIsPremiumServer] = useState(false);
-  const [isDemoPremium, setIsDemoPremium] = useState(false);
+
   const [premiumExpiry, setPremiumExpiry] = useState<string | null>(null);
 
   // Premium is true if either server says so OR demo mode is active
-  const isPremium = isPremiumServer || isDemoPremium;
+  const isPremium = isPremiumServer;
   
   // Computed value
   const isAuthenticated = !!userToken;
@@ -68,29 +68,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
        console.log('Check premium status failed (possibly free user)');
        setIsPremiumServer(false);
     }
-    
-    // Also load demo premium status from local storage
-    try {
-      const demoStatus = await AsyncStorage.getItem(DEMO_PREMIUM_KEY);
-      setIsDemoPremium(demoStatus === 'true');
-    } catch (e) {
-      console.log('Failed to load demo premium status');
-    }
   };
 
-  // Activate demo premium mode (local only, no backend)
-  const activateDemoPremium = useCallback(async () => {
-    setIsDemoPremium(true);
-    await AsyncStorage.setItem(DEMO_PREMIUM_KEY, 'true');
-    console.log('[AuthContext] Demo Premium ACTIVATED');
-  }, []);
 
-  // Deactivate demo premium mode
-  const deactivateDemoPremium = useCallback(async () => {
-    setIsDemoPremium(false);
-    await AsyncStorage.removeItem(DEMO_PREMIUM_KEY);
-    console.log('[AuthContext] Demo Premium DEACTIVATED');
-  }, []);
 
   // Load user info từ API
   const loadUserInfo = useCallback(async () => {
@@ -127,10 +107,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const response = await refreshTokenApi(refreshToken);
 
-      if (response.token) {
-        const newToken = response.token;
-        const newRefreshToken = response.refreshToken || refreshToken;
+      const responseData = response.data || response; // handle if response is already data
+      const newToken = responseData.token || responseData.accessToken;
+      const newRefreshToken = responseData.refreshToken || refreshToken;
 
+      if (newToken) {
         setUserToken(newToken);
         setRefreshToken(newRefreshToken);
 
@@ -272,15 +253,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isAuthenticated,
     isPremium,
     premiumExpiry,
-    isDemoPremium,
     login,
     logout,
     loadUserInfo,
     refreshAuthToken,
     checkTokenValidity,
     updateUser,
-    activateDemoPremium,
-    deactivateDemoPremium,
   };
 
   // notification (Firebase) Management
@@ -289,13 +267,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     if (userToken) {
       console.log('[AuthContext] Initializing NotificationService');
-      // Request permission and get token
-      notificationService.requestUserPermission().catch(err => {
-        console.error('[AuthContext] Notification permission error:', err);
-      });
       
-      // Listen for foreground messages
-      unsubscribeForeground = notificationService.listenToForegroundNotifications();
+      // Initialize notification service and get unsubscribe function
+      notificationService.init().then(unsub => {
+        unsubscribeForeground = unsub;
+      }).catch(err => {
+        console.error('[AuthContext] Notification init error:', err);
+      });
     }
 
     return () => {

@@ -68,7 +68,42 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         ],
       );
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể gửi OTP');
+      // Extract readable error message using AGGRESSIVE EXTRACTION
+      let rawMsg = 
+        err?.response?.data?.message || 
+        err?.response?.data?.error?.message || 
+        err?.response?.data?.error ||
+        err?.response?.data ||
+        err?.message || 
+        'Đã xảy ra lỗi';
+      
+      // If rawMsg is an object, try to find a message field
+      if (typeof rawMsg === 'object' && rawMsg !== null) {
+        rawMsg = (rawMsg as any).message || (rawMsg as any).error || JSON.stringify(rawMsg);
+      }
+      
+      // If rawMsg looks like JSON string, try to parse it
+      if (typeof rawMsg === 'string' && (rawMsg.trim().startsWith('{') || rawMsg.trim().startsWith('['))) {
+        try {
+          const parsed = JSON.parse(rawMsg);
+          if (Array.isArray(parsed)) {
+            rawMsg = parsed.join(', ');
+          } else if (typeof parsed === 'object') {
+            rawMsg = parsed.message || (Array.isArray(parsed.message) ? parsed.message.join(', ') : JSON.stringify(parsed));
+          }
+        } catch (e) {}
+      }
+      
+      let errorMsg = String(rawMsg);
+      
+      // Friendly messages for common errors
+      if (errorMsg.includes('400') || errorMsg.includes('not found') || errorMsg.includes('Not Found') || errorMsg.toLowerCase().includes('user not found')) {
+        errorMsg = 'Email chưa được đăng ký trong hệ thống';
+      } else if (errorMsg.toLowerCase().includes('email')) {
+        errorMsg = 'Vui lòng nhập đúng định dạng email';
+      }
+      
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }

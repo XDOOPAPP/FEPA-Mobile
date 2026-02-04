@@ -14,6 +14,7 @@ import {
   Easing,
   NativeModules,
   NativeEventEmitter,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -22,6 +23,7 @@ import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/
 import { useExpense } from '../../../common/hooks/useMVVM';
 import { aiRepository } from '../../../core/repositories/AiRepository';
 import { AuthContext } from '../../../store/AuthContext';
+import { GlassCard } from '../../../components/design-system/GlassCard';
 import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 
 const VoiceModule = NativeModules.Voice || NativeModules.RCTVoice;
@@ -46,7 +48,7 @@ const CATEGORIES: Record<string, string> = {
   shopping: 'Mua sắm',
   utilities: 'Hóa đơn',
   entertainment: 'Giải trí',
-  healthcare: 'Sức khỏe',
+  health: 'Sức khỏe',
   other: 'Khác',
 };
 
@@ -80,7 +82,7 @@ const VoiceInputScreen: React.FC = () => {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.2,
+            toValue: 1.15,
             duration: 800,
             useNativeDriver: true,
             easing: Easing.inOut(Easing.ease),
@@ -104,25 +106,34 @@ const VoiceInputScreen: React.FC = () => {
     setIsAiProcessing(true);
     setParsedData(null);
     try {
+      console.log('[AI Voice] Processing text:', text);
       const prompt = `Bạn là trợ lý tài chính FEPA. Hãy phân tích câu nói chi tiêu tiếng Việt sau và trích xuất thông tin. 
       CHỈ TRẢ VỀ JSON hợp lệ theo format này: {"amount": number, "category": "food|transport|shopping|utilities|entertainment|healthcare|other", "description": "tóm tắt ngắn"}. 
       Câu nói: "${text}"`;
 
       const result = await aiRepository.assistantChat({ message: prompt });
+      console.log('[AI Voice] AI Raw Response:', result.reply);
       
-      const jsonMatch = result.reply.match(/\{.*\}/s);
+      const jsonMatch = result.reply.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        setParsedData(data);
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 500,
-          easing: Easing.out(Easing.back(1)),
-          useNativeDriver: true,
-        }).start();
+        try {
+          const data = JSON.parse(jsonMatch[0]);
+          setParsedData(data);
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 600,
+            easing: Easing.out(Easing.back(1)),
+            useNativeDriver: true,
+          }).start();
+        } catch (parseErr) {
+          throw new Error('Dữ liệu AI trả về không đúng định dạng JSON.');
+        }
+      } else {
+        throw new Error('AI không tìm thấy thông tin chi tiêu trong câu nói của bạn.');
       }
-    } catch (error) {
-      console.error('[AI Voice] Parsing error:', error);
+    } catch (error: any) {
+      console.error('[AI Voice] Error:', error);
+      Alert.alert('Lỗi AI', error.message || 'Không thể phân tích dữ liệu từ giọng nói. Vui lòng thử lại.');
     } finally {
       setIsAiProcessing(false);
     }
@@ -140,14 +151,12 @@ const VoiceInputScreen: React.FC = () => {
     return true;
   };
 
-  // Helper to call native methods safely with Promises
   const callNative = (method: string, ...args: any[]): Promise<any> => {
     return new Promise((resolve) => {
       if (!VoiceModule || !VoiceModule[method]) {
         console.warn(`[Voice] Method ${method} not found`);
         return resolve(null);
       }
-      
       VoiceModule[method](...args, (err: any, out: any) => {
         if (err) console.log(`[Voice] ${method} error:`, err);
         resolve(out || err);
@@ -157,20 +166,15 @@ const VoiceInputScreen: React.FC = () => {
 
   const handleToggleTranscription = async () => {
     if (isRecording) {
-      console.log('[Voice] Manual stop requested');
       setIsRecording(false);
       await callNative('stopSpeech');
-      
-      // Force AI processing on manual stop if we have enough text
       if (transcriptRef.current.length > 3) {
-        console.log('[Voice] Triggering AI processing immediately after manual stop...');
         processWithAI(transcriptRef.current);
       }
     } else {
       const hasPermission = await requestPermission();
       if (!hasPermission) return;
 
-      console.log('[Voice] Starting new recording session...');
       setIsRecording(true);
       setTranscript('');
       transcriptRef.current = '';
@@ -184,8 +188,6 @@ const VoiceInputScreen: React.FC = () => {
       
       try {
         await callNative('destroySpeech');
-        
-        // Direct event registration to the bridge
         voiceEmitter.removeAllListeners('onSpeechPartialResults');
         voiceEmitter.removeAllListeners('onSpeechResults');
         voiceEmitter.removeAllListeners('onSpeechEnd');
@@ -201,23 +203,19 @@ const VoiceInputScreen: React.FC = () => {
         voiceEmitter.addListener('onSpeechResults', (e: any) => {
           if (e.value && e.value[0]) {
             const result = e.value[0];
-            console.log('[Voice] Final result received:', result);
             setTranscript(result);
             transcriptRef.current = result;
           }
         });
         
         voiceEmitter.addListener('onSpeechEnd', () => {
-          console.log('[Voice] onSpeechEnd fired. Current text:', transcriptRef.current);
           setIsRecording(false);
           if (transcriptRef.current.length > 3 && !isAiProcessing && !parsedData) {
-            console.log('[Voice] Triggering AI processing from onSpeechEnd...');
             processWithAI(transcriptRef.current);
           }
         });
 
-        voiceEmitter.addListener('onSpeechError', (e: any) => {
-          console.log('[Voice] Speech error code:', e.error?.code || e.code);
+        voiceEmitter.addListener('onSpeechError', () => {
           setIsRecording(false);
         });
 
@@ -243,7 +241,6 @@ const VoiceInputScreen: React.FC = () => {
 
   const handleConfirm = async () => {
     if (!parsedData || parsedData.amount <= 0) return;
-
     try {
       await createExpense({
         amount: parsedData.amount,
@@ -252,7 +249,7 @@ const VoiceInputScreen: React.FC = () => {
         spentAt: new Date().toISOString(),
       });
       navigation.goBack();
-      Alert.alert('Thành công', 'Đã lưu chi tiêu bằng giọng nói!');
+      Alert.alert('Thành công', 'Đã lưu chi tiêu!');
     } catch (error: any) {
       Alert.alert('Lỗi', error.message || 'Không thể lưu chi tiêu');
     }
@@ -260,95 +257,100 @@ const VoiceInputScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#1A1C1E', '#121416']} style={styles.gradient}>
+      <StatusBar barStyle="dark-content" />
+      <View style={styles.safeArea}>
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
+            <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Nhập giọng nói AI</Text>
           <View style={{ width: 44 }} />
         </View>
 
-        <View style={styles.content}>
-          <View style={styles.micContainer}>
-            <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }]} />
-            <TouchableOpacity 
-              activeOpacity={0.8}
-              onPress={handleToggleTranscription} 
-              style={[styles.micBtn, isRecording && styles.micBtnActive]}
-            >
-              <Ionicons name={isRecording ? "stop" : "mic"} size={40} color="#FFF" />
-            </TouchableOpacity>
-            <Text style={styles.statusText}>
-              {isRecording ? 'Đang nghe bạn nói...' : 'Nhấn vào mic để bắt đầu'}
-            </Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.micSection}>
+             <View style={styles.micWrapper}>
+                <Animated.View style={[styles.pulseCircle, { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }]} />
+                <TouchableOpacity 
+                    activeOpacity={0.9}
+                    onPress={handleToggleTranscription} 
+                    style={[styles.micBtn, isRecording && styles.micBtnActive]}
+                >
+                    <LinearGradient
+                        colors={isRecording ? [Colors.danger, '#EF4444'] : [Colors.primary, Colors.primaryDark]}
+                        style={styles.micGradient}
+                    >
+                        <Ionicons name={isRecording ? "stop" : "mic"} size={36} color="#FFF" />
+                    </LinearGradient>
+                </TouchableOpacity>
+             </View>
+             <Text style={styles.statusText}>
+                {isRecording ? 'Đang lắng nghe...' : 'Chạm để nói chi tiêu của bạn'}
+             </Text>
+             <Text style={styles.hintText}>
+                Ví dụ: "Hôm nay tôi ăn phở hết 50 ngàn"
+             </Text>
           </View>
 
-          {/* Transcript View */}
-          <View style={styles.transcriptBox}>
-            <Text style={styles.transcriptLabel}>Văn bản nhận diện:</Text>
-            <Text style={styles.transcriptText}>
-              {transcript || (isRecording ? 'Đang lắng nghe...' : 'Sẵn sàng nhận lệnh')}
-            </Text>
+          <View style={styles.transBox}>
+             <View style={styles.transHeader}>
+                <Text style={styles.transTitle}>VĂN BẢN NHẬN DIỆN</Text>
+                {isRecording && <View style={styles.liveIndicator} />}
+             </View>
+             <Text style={[styles.transText, !transcript && styles.transPlaceholder]}>
+                {transcript || "Đang chờ giọng nói của bạn..."}
+             </Text>
           </View>
 
-          {/* AI Result Card */}
           {(isAiProcessing || parsedData) && (
-            <Animated.View style={[styles.resultCard, { transform: [{ translateY: slideAnim }] }]}>
+            <Animated.View style={[styles.resultArea, { transform: [{ translateY: slideAnim }] }]}>
               {isAiProcessing ? (
-                <View style={styles.loadingBox}>
-                  <ActivityIndicator color={Colors.primary} size="large" />
-                  <Text style={styles.aiLoadingText}>AI đang phân tích chi tiêu...</Text>
+                <View style={styles.aiLoadingBox}>
+                   <ActivityIndicator color={Colors.primary} size="large" />
+                   <Text style={styles.aiLoadingText}>AI đang phân tích dữ liệu...</Text>
                 </View>
               ) : (
-                <View>
-                  <View style={styles.resultHeader}>
-                     <Ionicons name="sparkles" size={20} color={Colors.primary} />
-                     <Text style={styles.resultTitle}>Kết quả phân tích AI</Text>
-                  </View>
-                  
-                  <View style={styles.dataRow}>
-                    <View style={styles.dataItem}>
-                      <Text style={styles.dataLabel}>Số tiền</Text>
-                      <Text style={styles.dataValue}>{parsedData?.amount.toLocaleString()}₫</Text>
-                    </View>
-                    <View style={styles.dataItem}>
-                      <Text style={styles.dataLabel}>Danh mục</Text>
-                      <View style={styles.categoryBadge}>
-                        <Text style={styles.categoryText}>{CATEGORIES[parsedData?.category || 'other']}</Text>
+                <GlassCard style={styles.resCard}>
+                   <View style={styles.resHeader}>
+                      <View style={styles.aiIcon}>
+                         <Ionicons name="sparkles" size={16} color="#FFF" />
                       </View>
-                    </View>
-                  </View>
+                      <Text style={styles.resTitle}>Kết quả từ FEPA AI</Text>
+                   </View>
 
-                  <View style={styles.descBox}>
-                    <Text style={styles.dataLabel}>Ghi chú</Text>
-                    <Text style={styles.descValue}>{parsedData?.description}</Text>
-                  </View>
+                   <View style={styles.resBody}>
+                      <View style={styles.resRow}>
+                         <View style={styles.resCol}>
+                            <Text style={styles.resLabel}>SỐ TIỀN</Text>
+                            <Text style={styles.resAmount}>{parsedData?.amount.toLocaleString()}₫</Text>
+                         </View>
+                         <View style={styles.resCol}>
+                            <Text style={styles.resLabel}>DANH MỤC</Text>
+                            <View style={styles.tag}>
+                               <Text style={styles.tagText}>{CATEGORIES[parsedData?.category || 'other']}</Text>
+                            </View>
+                         </View>
+                      </View>
 
-                  <TouchableOpacity 
-                    style={styles.confirmBtn} 
-                    onPress={handleConfirm}
-                    disabled={expenseState.isLoading}
-                  >
-                    {expenseState.isLoading ? (
-                      <ActivityIndicator color="#FFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.confirmText}>Xác nhận & Lưu</Text>
-                        <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                      <View style={styles.resDesc}>
+                         <Text style={styles.resLabel}>GHI CHÚ</Text>
+                         <Text style={styles.resDescText}>{parsedData?.description}</Text>
+                      </View>
+
+                      <TouchableOpacity style={styles.saveBtn} onPress={handleConfirm}>
+                         <Text style={styles.saveBtnText}>Xác nhận & Lưu chi tiêu</Text>
+                         <Ionicons name="chevron-forward" size={18} color="#FFF" />
+                      </TouchableOpacity>
+                   </View>
+                </GlassCard>
               )}
             </Animated.View>
           )}
 
-        </View>
-      </LinearGradient>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -356,176 +358,222 @@ const VoiceInputScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
   },
-  gradient: {
+  safeArea: {
     flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingHorizontal: 16,
     paddingBottom: 20,
+    backgroundColor: '#FFF',
   },
   backBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    ...Typography.h3,
-    color: '#FFF',
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.textPrimary,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    alignItems: 'center',
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 30,
   },
-  micContainer: {
-    marginTop: 40,
+  micSection: {
     alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 40,
   },
-  micBtn: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.primary,
+  micWrapper: {
+    width: 150,
+    height: 150,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+  },
+  micBtn: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    ...Shadow.md,
     zIndex: 5,
   },
+  micGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   micBtnActive: {
-    backgroundColor: Colors.danger,
     shadowColor: Colors.danger,
   },
   pulseCircle: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: Colors.primary,
-    zIndex: 1,
+      position: 'absolute',
+      width: 140,
+      height: 140,
+      borderRadius: 70,
+      backgroundColor: Colors.primary,
+      zIndex: 1,
   },
   statusText: {
     marginTop: 20,
-    ...Typography.body,
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  hintText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
+  transBox: {
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: Radius.xl,
+    ...Shadow.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 25,
+  },
+  transHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  transTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.textMuted,
+    letterSpacing: 1.5,
+  },
+  liveIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.danger,
+  },
+  transText: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+  },
+  transPlaceholder: {
+    color: '#CBD5E1',
+    fontStyle: 'italic',
+  },
+  resultArea: {
+    marginTop: 10,
+  },
+  aiLoadingBox: {
+    alignItems: 'center',
+    padding: 30,
+  },
+  aiLoadingText: {
+    marginTop: 15,
+    fontSize: 14,
     color: Colors.textSecondary,
     fontWeight: '600',
   },
-  transcriptBox: {
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 16,
-    padding: 20,
+  resCard: {
+    padding: 0,
+    overflow: 'hidden',
+    backgroundColor: '#FFF',
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    marginBottom: 24,
+    borderColor: Colors.primaryLight + '20',
   },
-  transcriptLabel: {
-    ...Typography.captionBold,
-    color: Colors.primary,
-    marginBottom: 8,
-  },
-  transcriptText: {
-    ...Typography.body,
-    color: '#FFF',
-    fontSize: 18,
-    lineHeight: 26,
-    fontStyle: 'italic',
-  },
-  resultCard: {
-    width: '100%',
-    backgroundColor: Colors.card,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    ...Shadow.glow,
-  },
-  loadingBox: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  aiLoadingText: {
-    marginTop: 16,
-    ...Typography.body,
-    color: Colors.textSecondary,
-  },
-  resultHeader: {
+  resHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  resultTitle: {
-    ...Typography.h4,
-    color: '#FFF',
+  aiIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
   },
-  dataRow: {
+  resTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  resBody: {
+    padding: 20,
+  },
+  resRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  dataItem: {
+  resCol: {
     flex: 1,
   },
-  dataLabel: {
-    ...Typography.caption,
+  resLabel: {
+    fontSize: 10,
+    fontWeight: '800',
     color: Colors.textMuted,
     marginBottom: 6,
+    letterSpacing: 1,
   },
-  dataValue: {
-    ...Typography.h2,
-    color: '#FFF',
-    fontSize: 24,
+  resAmount: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.textPrimary,
   },
-  categoryBadge: {
-    backgroundColor: 'rgba(37, 99, 235, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+  tag: {
+    backgroundColor: Colors.primaryLight + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: 'rgba(37, 99, 235, 0.3)',
   },
-  categoryText: {
-    color: Colors.primaryLight,
-    fontWeight: '700',
+  tagText: {
     fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
   },
-  descBox: {
-    marginBottom: 24,
+  resDesc: {
+    marginBottom: 25,
   },
-  descValue: {
-    ...Typography.body,
-    color: '#FFF',
+  resDescText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
     lineHeight: 22,
   },
-  confirmBtn: {
+  saveBtn: {
     backgroundColor: Colors.primary,
-    height: 56,
-    borderRadius: 16,
+    height: 52,
+    borderRadius: Radius.lg,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+    ...Shadow.sm,
   },
-  confirmText: {
+  saveBtnText: {
     color: '#FFF',
+    fontSize: 15,
     fontWeight: '700',
-    fontSize: 16,
-  },
+    marginRight: 8,
+  }
 });
 
 export default VoiceInputScreen;

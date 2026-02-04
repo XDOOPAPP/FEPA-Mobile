@@ -80,7 +80,7 @@ android {
 
     namespace "com.fepamobile"
     defaultConfig {
-        applicationId "com.fepamobile"
+        applicationId "com.example.multifood"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

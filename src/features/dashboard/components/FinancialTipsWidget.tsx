@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors, Spacing, Typography } from '../../../constants/theme';
+import { Colors, Spacing, Typography, Shadow } from '../../../constants/theme';
 import { GlassCard } from '../../../components/design-system/GlassCard';
 import { useAI } from '../../../common/hooks/useAI';
 import { useAuth } from '../../../common/hooks/useMVVM';
@@ -57,25 +57,28 @@ const FinancialTipsWidget: React.FC = () => {
     <GlassCard variant="default" style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Ionicons name="bulb" size={20} color={Colors.warning} style={styles.icon} />
+          <View style={styles.iconWrapper}>
+            <Ionicons name="bulb" size={20} color="#F59E0B" />
+          </View>
           <Text style={styles.title}>Lời khuyên tài chính</Text>
         </View>
-        <TouchableOpacity onPress={loadAdvice} disabled={loading}>
-          <Ionicons name="refresh" size={18} color={Colors.textSecondary} />
+        <TouchableOpacity onPress={loadAdvice} disabled={loading} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator color={Colors.primary} />
+          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 10 }} />
         ) : (
           <Text style={styles.adviceText}>{advice}</Text>
         )}
       </View>
       
       {!profileLoaded && !loading && (
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-           <Text style={styles.hint}>Vào Profile để cập nhật thông tin <Ionicons name="arrow-forward" size={12} /></Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.hintContainer}>
+           <Text style={styles.hint}>Vào Profile để cập nhật thông tin</Text>
+           <Ionicons name="arrow-forward" size={14} color={Colors.primary} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       )}
     </GlassCard>
@@ -85,38 +88,53 @@ const FinancialTipsWidget: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.md,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...Shadow.sm,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  icon: {
-    marginRight: Spacing.xs,
+  iconWrapper: {
+    marginRight: 10,
   },
   title: {
     ...Typography.h4,
     color: Colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  refreshButton: {
+    padding: 2,
   },
   content: {
-    minHeight: 50,
+    minHeight: 40,
     justifyContent: 'center',
+    marginBottom: 12,
   },
   adviceText: {
     ...Typography.body,
     color: Colors.textSecondary,
-    fontStyle: 'italic',
-    lineHeight: 20,
+    lineHeight: 22,
+    fontSize: 15,
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
   },
   hint: {
-    ...Typography.caption,
+    ...Typography.bodyBold,
     color: Colors.primary,
-    marginTop: Spacing.xs,
+    fontSize: 14,
   },
 });
 

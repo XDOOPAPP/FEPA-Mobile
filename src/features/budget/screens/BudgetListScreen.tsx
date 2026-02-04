@@ -13,6 +13,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import DatePicker from 'react-native-date-picker';
 import { useBudget, useAI, useExpense } from '../../../common/hooks/useMVVM';
 import { AuthContext } from '../../../store/AuthContext';
 import { BudgetWithProgress } from '../../../core/models/Budget';
@@ -33,27 +34,12 @@ const normalizeCategory = (value?: string) => {
   if (v.includes('mua') || v.includes('sắm') || v.includes('shopping')) return 'shopping';
   if (v.includes('hóa đơn') || v.includes('tiện ích') || v.includes('utilities')) return 'utilities';
   if (v.includes('giải trí') || v.includes('chơi')) return 'entertainment';
-  if (v.includes('sức khỏe') || v.includes('y tế') || v.includes('thuốc')) return 'healthcare';
+  if (v.includes('sức khỏe') || v.includes('y tế') || v.includes('thuốc') || v === 'health') return 'healthcare';
   
   return 'other';
 };
 
-const MOCK_AI_ALERTS = [
-  {
-    category: 'food',
-    budget: 2000000,
-    spent: 1750000,
-    alertLevel: 'warning',
-    message: 'Bạn đã dùng 87% ngân sách Ăn uống. Hãy cân nhắc trước khi gọi món nhé!'
-  },
-  {
-    category: 'shopping',
-    budget: 1500000,
-    spent: 1600000,
-    alertLevel: 'danger',
-    message: 'Cảnh báo! Bạn đã vượt giới hạn Mua sắm tháng này.'
-  }
-];
+
 
 const BudgetListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -66,6 +52,8 @@ const BudgetListScreen: React.FC = () => {
   const [aiAlerts, setAiAlerts] = useState<any[]>([]);
   const [processedBudgets, setProcessedBudgets] = useState<BudgetWithProgress[]>([]);
   const [totals, setTotals] = useState({ budget: 0, spent: 0 });
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const totalBudget = totals.budget;
   const totalSpent = totals.spent;
@@ -77,9 +65,8 @@ const BudgetListScreen: React.FC = () => {
       const budgets = await getAllBudgetsWithProgress();
       
       // Also fetch all expenses for this month to fix the server discrepancy
-      const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+      const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).toISOString().split('T')[0];
       
       const expenseRes = await getExpensesFiltered({ fromDate: firstDay, toDate: lastDay });
       const expenses = expenseRes.data || [];
@@ -109,22 +96,44 @@ const BudgetListScreen: React.FC = () => {
       const tSpent = budgetsWithFix.reduce((sum, b) => sum + (b.progress?.totalSpent || 0), 0);
       setTotals({ budget: tBudget, spent: tSpent });
 
-    } catch (error: any) {
-      console.log('Error loading budgets:', error);
-    }
-
-    try {
-      // Load AI Alerts for current month
-      const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
-      const res = await getBudgetAlerts({ month: currentMonth });
-      if (res && res.alerts) {
-        setAiAlerts(res.alerts);
+      // --- AI Alerts Section (Inside same scope) ---
+      const monthStr = currentMonth.toISOString().substring(0, 7);
+      try {
+        const res = await getBudgetAlerts({ month: monthStr });
+        if (res && res.alerts && res.alerts.length > 0) {
+          setAiAlerts(res.alerts);
+        } else {
+          generateLocalAlerts(budgetsWithFix);
+        }
+      } catch (aiErr) {
+        console.log('AI Service unreachable, using local analytics fallback');
+        generateLocalAlerts(budgetsWithFix);
       }
     } catch (error: any) {
-      console.log('Using mock AI alerts (Service 404 or Offline)');
-      setAiAlerts(MOCK_AI_ALERTS);
+      console.log('Error loading budget data:', error.message || error);
+      if (error.response) {
+        console.log('Server responded with:', error.response.status, error.response.data);
+      }
     }
-  }, [getAllBudgetsWithProgress, getExpensesFiltered, getBudgetAlerts, budgetState.budgets]);
+  }, [getAllBudgetsWithProgress, getExpensesFiltered, getBudgetAlerts, budgetState.budgets, currentMonth]);
+
+  const generateLocalAlerts = (budgets: BudgetWithProgress[]) => {
+    const localAlerts = budgets
+      .filter(b => b.progress && (b.progress.percentage > 80))
+      .map(b => {
+        const isExceeded = b.progress!.percentage > 100;
+        return {
+          category: b.category,
+          budget: b.limitAmount,
+          spent: b.progress!.totalSpent,
+          alertLevel: isExceeded ? 'danger' : 'warning',
+          message: isExceeded 
+            ? `Cảnh báo! Bạn đã vượt giới hạn ngân sách ${b.name} tháng này.`
+            : `Bạn đã dùng ${Math.round(b.progress!.percentage)}% ngân sách ${b.name}. Hãy cân nhắc trước khi chi tiêu thêm.`
+        };
+      });
+    setAiAlerts(localAlerts);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -203,9 +212,11 @@ const BudgetListScreen: React.FC = () => {
         </View>
         <View style={styles.headerTextContainer}>
            <Text style={styles.headerTitle}>Tổng quan Ngân sách</Text>
-           <Text style={styles.headerSubtitle}>Tháng này • {new Date().toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}</Text>
+           <Text style={styles.headerSubtitle}>
+             {currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear() ? 'Tháng này' : 'Thời gian'} • {currentMonth.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
+           </Text>
         </View>
-        <TouchableOpacity style={styles.calendarButton}>
+        <TouchableOpacity style={styles.calendarButton} onPress={() => setShowDatePicker(true)}>
           <Ionicons name="calendar-outline" size={24} color={Colors.primary} />
         </TouchableOpacity>
       </View>
@@ -311,17 +322,34 @@ const BudgetListScreen: React.FC = () => {
           
           <TouchableOpacity 
             style={styles.fab}
-            onPress={() => navigation.navigate('CreateBudget')}
+            onPress={() => navigation.navigate('CreateBudget', { currentMonth })}
           >
             <LinearGradient
               colors={Colors.primaryGradient}
               style={styles.fabGradient}
             >
-              <Ionicons name="add" size={32} color="#FFFFFF" />
+               <Ionicons name="add" size={32} color="#FFFFFF" />
             </LinearGradient>
           </TouchableOpacity>
         </View>
       )}
+
+      <DatePicker
+        modal
+        open={showDatePicker}
+        date={currentMonth}
+        mode="date"
+        onConfirm={(date) => {
+          setShowDatePicker(false);
+          setCurrentMonth(date);
+        }}
+        onCancel={() => {
+          setShowDatePicker(false);
+        }}
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        title="Chọn tháng"
+      />
     </View>
   );
 };
@@ -550,7 +578,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 110,
     right: 24,
     width: 64,
     height: 64,

@@ -208,9 +208,9 @@ export const useBlogViewModel = () => {
   }, [setLoading, setError, setSuccess, clearMessages, syncState, blogState.myBlogs]);
 
   // Upload image
-  const uploadImage = useCallback(async (fileUri: string) => {
+  const uploadImage = useCallback(async (fileUri: string, mimeType?: string) => {
     try {
-      const result = await blogRepository.uploadSingleImage(fileUri);
+      const result = await blogRepository.uploadSingleImage(fileUri, mimeType);
       return result;
     } catch (error: any) {
       setError(error.message || 'Failed to upload image');

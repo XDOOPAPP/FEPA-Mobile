@@ -37,6 +37,7 @@ export interface CreateExpenseRequest {
   tags?: string[];
   location?: string;
   paymentMethod?: string;
+  ocrJobId?: string;
 }
 
 export interface UpdateExpenseRequest {

@@ -21,6 +21,7 @@ import {
   Modal,
   Dimensions,
   RefreshControl,
+  PermissionsAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -31,8 +32,10 @@ import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
 import RNFS from 'react-native-fs';
 import { axiosInstance } from '../../../api/axiosInstance';
 import { API_ENDPOINTS } from '../../../constants/api';
+import { expenseRepository } from '../../../core/repositories/ExpenseRepository';
 import { useAuth, useSubscription } from '../../../common/hooks/useMVVM';
 import { GlassCard } from '../../../components/design-system/GlassCard';
+import { notificationService } from '../../../core/services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -75,7 +78,7 @@ const ProfileScreen: React.FC = () => {
   }>({ monthlyIncome: null, savingsGoal: null, spendingStyle: 'balanced' });
 
   // Settings States
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
   // Change Password States
@@ -89,7 +92,6 @@ const ProfileScreen: React.FC = () => {
   // Check both server status AND demo premium mode
   const isPremiumServer = subscriptionState.current?.status === 'active' || subscriptionState.current?.status === 'ACTIVE';
   const isPremium = isPremiumServer || authContext?.isPremium || false;
-  const isDemoPremium = authContext?.isDemoPremium || false;
   const subscription = subscriptionState.current;
   const memberSince = user?.createdAt 
     ? new Date(user.createdAt).toLocaleDateString('vi-VN', { month: 'short', year: 'numeric' })
@@ -97,11 +99,14 @@ const ProfileScreen: React.FC = () => {
 
   // Load profile from API
   const loadProfile = useCallback(async () => {
-    if (!authContext) return;
+    // Skip if no auth context or no token (user is logging out)
+    if (!authContext || !authContext.userToken) return;
     try {
       await authContext.loadUserInfo();
       await getCurrent();
     } catch (error: any) {
+      // Ignore Unauthorized errors during logout
+      if (error.message?.includes('Unauthorized')) return;
       console.log('Profile load error', error);
     }
   }, [authContext, getCurrent]);
@@ -147,8 +152,32 @@ const ProfileScreen: React.FC = () => {
 
   // Settings handlers
   const handleToggleNotification = async (value: boolean) => {
-    setNotificationsEnabled(value);
-    await AsyncStorage.setItem('settings_notifications', JSON.stringify(value));
+    try {
+      setNotificationsEnabled(value);
+      await AsyncStorage.setItem('settings_notifications', JSON.stringify(value));
+      
+      if (value) {
+        // User turned ON notifications
+        const hasPermission = await notificationService.requestUserPermission();
+        if (hasPermission) {
+           await notificationService.init();
+           Alert.alert('Thông báo', 'Đã bật nhận thông báo từ FEPA.');
+        } else {
+           Alert.alert(
+             'Cần cấp quyền thủ công',
+             'Ứng dụng không thể tự bật thông báo do quyền bị hạn chế. Vui lòng vào Cài đặt > Ứng dụng > FEPA > Thông báo để bật thủ công.',
+             [{ text: 'Đã hiểu' }]
+           );
+           setNotificationsEnabled(false); // Revert switch
+        }
+      } else {
+        // User turned OFF notifications
+        Alert.alert('Thông báo', 'Đã tắt thông báo.');
+      }
+    } catch (error) {
+      console.log('Toggle notification error:', error);
+      setNotificationsEnabled(!value); // Revert on error
+    }
   };
 
   const handleToggleBiometrics = async (value: boolean) => {
@@ -159,18 +188,61 @@ const ProfileScreen: React.FC = () => {
   // Export data
   const handleExportCsv = async () => {
     try {
-      const res = await axiosInstance.get(API_ENDPOINTS.GET_EXPENSE_EXPORT);
-      const data = res.data;
-      const csv = [
-        ['Ngày', 'Số tiền', 'Danh mục', 'Ghi chú'],
-        ...data.map((e: any) => [e.date, e.amount, e.category, e.note || '']),
-      ].map(row => row.join(',')).join('\n');
+      // 1. Fetch data directly via Repository
+      // Note: limit=1000 caused 500 Error. Switched to getExpenses() (default params) for stability.
+      const data = await expenseRepository.getExpenses();
 
-      const path = `${RNFS.DownloadDirectoryPath}/FEPA_export_${Date.now()}.csv`;
-      await RNFS.writeFile(path, csv, 'utf8');
-      Alert.alert('Thành công', `Đã xuất file: ${path}`);
+      if (!data || data.length === 0) {
+        Alert.alert('Thông báo', 'Không có dữ liệu chi tiêu để xuất.');
+        return;
+      }
+
+      // 2. Convert to CSV
+      const header = ['Ngày', 'Số tiền', 'Danh mục', 'Ghi chú'];
+      const rows = data.map((e: any) => [
+        new Date(e.spentAt || e.createdAt).toLocaleDateString('vi-VN'),
+        e.amount,
+        e.category?.name || e.category || 'Khác',
+        `"${(e.note || '').replace(/"/g, '""')}"`
+      ]);
+      
+      const csvContent = [
+        header.join(','),
+        ...rows.map(r => r.join(','))
+      ].join('\n');
+
+      // 3. Permission check for Android <= 28
+      if (Platform.OS === 'android' && typeof Platform.Version === 'number' && Platform.Version <= 28) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Quyền lưu file',
+            message: 'Ứng dụng cần quyền lưu file để xuất dữ liệu chi tiêu.',
+            buttonNeutral: 'Để sau',
+            buttonNegative: 'Hủy',
+            buttonPositive: 'Đồng ý',
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Lỗi', 'Quyền lưu file bị từ chối.');
+          return;
+        }
+      }
+
+      // 4. Write File
+      const fileName = `FEPA_Expenses_${Date.now()}.csv`;
+      const path = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+      
+      await RNFS.writeFile(path, csvContent, 'utf8');
+      
+      Alert.alert(
+        'Xuất dữ liệu thành công', 
+        `File đã được lưu tại:\n${path}\n\nBạn có thể tìm trong thư mục Tải xuống (Downloads).`
+      );
+
     } catch (error: any) {
-      Alert.alert('Lỗi', 'Không thể xuất dữ liệu');
+      console.log('Export error:', error);
+      Alert.alert('Lỗi', `Không thể xuất dữ liệu: ${error.message}`);
     }
   };
 
@@ -287,9 +359,7 @@ const ProfileScreen: React.FC = () => {
         { 
           icon: isPremium ? 'diamond-outline' : 'ribbon-outline', 
           label: 'Gói dịch vụ', 
-          value: isPremium 
-            ? (isDemoPremium ? 'Premium (Demo)' : 'Premium') 
-            : 'Miễn phí',
+          value: isPremium ? 'Premium' : 'Miễn phí',
           onPress: () => navigation.navigate('Premium'),
           highlight: !isPremium
         },
@@ -326,8 +396,8 @@ const ProfileScreen: React.FC = () => {
         { 
           icon: 'shield-checkmark-outline', 
           label: 'Xác thực 2 bước', 
-          value: user?.twoFactorEnabled ? 'Đã bật' : 'Chưa bật',
-          onPress: () => navigation.navigate('TwoFactorSetup')
+          value: 'Đang phát triển',
+          onPress: () => Alert.alert('Thông báo', 'Tính năng xác thực 2 bước đang được phát triển. Vui lòng quay lại sau!')
         },
       ]
     },
@@ -370,7 +440,7 @@ const ProfileScreen: React.FC = () => {
         { 
           icon: 'help-circle-outline', 
           label: 'Trợ giúp & FAQ', 
-          onPress: () => {}
+          onPress: () => navigation.navigate('Help')
         },
       ]
     },
@@ -455,9 +525,7 @@ const ProfileScreen: React.FC = () => {
                 style={{marginRight: 6}} 
               />
               <Text style={styles.badgeText}>
-                {isPremium 
-                  ? (isDemoPremium ? 'PREMIUM (Demo)' : 'HỘI VIÊN PREMIUM') 
-                  : 'THÀNH VIÊN'}
+                {isPremium ? 'HỘI VIÊN PREMIUM' : 'THÀNH VIÊN'}
               </Text>
             </View>
           </View>

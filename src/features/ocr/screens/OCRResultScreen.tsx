@@ -28,6 +28,8 @@ const CATEGORIES = [
   { label: 'Ăn uống', slug: 'food' },
   { label: 'Đi lại', slug: 'transport' },
   { label: 'Mua sắm', slug: 'shopping' },
+  { label: 'Giải trí', slug: 'entertainment' },
+  { label: 'Y tế', slug: 'health' },
   { label: 'Hóa đơn', slug: 'utilities' },
   { label: 'Khác', slug: 'other' },
 ];
@@ -42,6 +44,7 @@ const OCRResultScreen: React.FC = () => {
 
   // Get job from context
   const job = currentOcrResult;
+  // CHỈ TẬP TRUNG LẤY EXPENSE DATA THEO YÊU CẦU
   const expenseData = job?.resultJson?.expenseData;
 
   const defaultCategory = useMemo(() => {
@@ -53,7 +56,7 @@ const OCRResultScreen: React.FC = () => {
     expenseData?.amount ? expenseData.amount.toString() : '',
   );
   const [description, setDescription] = useState(
-    expenseData?.description || 'Chi tiêu từ OCR',
+    expenseData?.description || 'Chi tiêu mới',
   );
   const [category, setCategory] = useState(defaultCategory);
   const [date, setDate] = useState(
@@ -62,12 +65,10 @@ const OCRResultScreen: React.FC = () => {
       : new Date().toISOString().split('T')[0],
   );
 
-  const merchantName =
-    job?.resultJson?.qrData &&
-    typeof job.resultJson.qrData === 'object' &&
-    'sellerName' in job.resultJson.qrData
-      ? String((job.resultJson.qrData as any).sellerName)
-      : 'Hóa đơn';
+  // Tên đơn vị bán hàng/Mô tả - Lấy trực tiếp từ expenseData
+  const merchantName = useMemo(() => {
+    return expenseData?.description || 'Hóa đơn mới';
+  }, [expenseData]);
 
   const handleSave = async () => {
     const parsedAmount = Number(amount.replace(/[^0-9]/g, ''));
@@ -82,20 +83,25 @@ const OCRResultScreen: React.FC = () => {
     }
 
     try {
+      // 1. Chuẩn bị payload để tạo Expense mới
+      // Ưu tiên sử dụng dữ liệu từ form (người dùng có thể đã sửa)
       const spentAt = new Date(date).toISOString();
-      
-      // 1. Create Expense (History)
-      const newExpense = await createExpense({
+      const expensePayload = {
         amount: parsedAmount,
-        category,
         description: description.trim(),
-        spentAt,
-        receiptUrl: job.fileUrl || undefined, // Link for future reference
-        ocrJobId: job.id, // Pass job ID to link/update auto-created expense
-        location: merchantName, // Store merchant name as location
-      });
+        category: category,
+        spentAt: spentAt,
+        receiptUrl: job.fileUrl,
+        ocrJobId: job.id, // Gắn ID job để backend biết nguồn gốc
+        notes: `Quét từ OCR ${job.id}`
+      };
 
-      // 2. Save Receipt to Gallery (Local Storage)
+      // 2. Gọi API tạo Expense
+      console.log('[OCR Result] Calling API to create expense...');
+      const newExpense = await createExpense(expensePayload);
+      console.log('[OCR Result] Expense created successfully:', newExpense.id);
+
+      // 3. Lưu hóa đơn vào bộ sưu tập nội bộ để truy cập offline nhanh
       if (job.fileUrl) {
          try {
            await saveReceipt({
@@ -111,7 +117,7 @@ const OCRResultScreen: React.FC = () => {
          }
       }
 
-      // 3. Add to Scan History (OCR Logs)
+      // 4. Thêm vào lịch sử quét địa phương (OCR Logs)
       await addScan({
         id: job.id,
         timestamp: Date.now(),
@@ -127,11 +133,13 @@ const OCRResultScreen: React.FC = () => {
         syncedAt: Date.now(),
       });
 
-      Alert.alert('Thành công', 'Đã lưu chi tiêu và hóa đơn', [
-        { text: 'OK', onPress: () => navigation.navigate('Transactions') },
+      // 5. Thông báo và chuyển hướng
+      Alert.alert('Thành công', 'Chi tiêu đã được lưu vào hệ thống.', [
+        { text: 'Xem chi tiêu', onPress: () => navigation.navigate('Transactions') },
       ]);
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể lưu chi tiêu');
+      console.error('[OCR Result] handleSave Error:', error);
+      Alert.alert('Lỗi', error.message || 'Không thể tạo chi tiêu. Vui lòng thử lại.');
     }
   };
 

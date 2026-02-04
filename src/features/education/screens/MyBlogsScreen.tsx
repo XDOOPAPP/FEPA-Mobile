@@ -14,7 +14,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors, Radius, Shadow, Spacing, Typography } from '../../../constants/theme';
@@ -26,9 +26,11 @@ const MyBlogsScreen: React.FC = () => {
   const { blogState, getMyBlogs, deleteBlog, submitForReview } = useBlog();
   const [filter, setFilter] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    getMyBlogs(filter);
-  }, [getMyBlogs, filter]);
+  useFocusEffect(
+    useCallback(() => {
+      getMyBlogs(filter);
+    }, [getMyBlogs, filter])
+  );
 
   const onRefresh = useCallback(() => {
     getMyBlogs(filter);
@@ -109,7 +111,7 @@ const MyBlogsScreen: React.FC = () => {
     >
       <View style={styles.cardHeader}>
         {item.thumbnailUrl ? (
-          <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} />
+          <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
         ) : (
           <View style={styles.thumbnailPlaceholder}>
             <Ionicons name="document-text-outline" size={32} color={Colors.textMuted} />

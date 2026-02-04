@@ -1,9 +1,10 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios'; // Direct axios for upload
 import { axiosInstance } from '../../api/axiosInstance';
 import { API_ENDPOINTS, API_BASE_URL } from '../../constants/api';
 import { Blog } from '../models/Blog';
+import RNFS from 'react-native-fs';
+import { uploadToCloudinary } from '../../config/cloudinary';
 
 export interface CreateBlogDto {
   title: string;
@@ -12,7 +13,8 @@ export interface CreateBlogDto {
   thumbnailUrl?: string;
   images?: string[];
   author?: string;
-  status?: 'draft' | 'pending';
+  category?: string;
+  status: 'draft' | 'pending';
 }
 
 export interface UpdateBlogDto {
@@ -21,6 +23,8 @@ export interface UpdateBlogDto {
   thumbnailUrl?: string;
   images?: string[];
   author?: string;
+  category?: string;
+  status?: 'draft' | 'pending';
 }
 
 export interface BlogListResponse {
@@ -37,76 +41,53 @@ class BlogRepository {
   private apiClient = axiosInstance;
 
   private unwrapResponse<T>(payload: any): T {
-    if (payload && typeof payload === 'object' && 'data' in payload) {
-      // @ts-ignore
-      return payload.data as T;
+    if (!payload) return payload;
+    if (payload.data && typeof payload.data === 'object' && 'data' in payload.data) {
+        return payload.data.data as T;
+    }
+    if (payload.data && Array.isArray(payload.data)) {
+        return payload.data as T;
+    }
+    if (payload.data !== undefined) {
+        return payload.data as T;
     }
     return payload as T;
   }
 
   private handleError(error: any): never {
     if (error.response) {
-      throw new Error(error.response.data?.message || `Server Error: ${error.response.status}`);
+      throw new Error(error.response.data?.message || `Lỗi từ Server: ${error.response.status}`);
     } else if (error.request) {
-      throw new Error('Network Error. Please check your connection.');
+      throw new Error('Lỗi kết nối. Vui lòng kiểm tra mạng của bạn.');
     }
     throw error;
   }
 
-  /**
-   * Get public blogs (approved/published)
-   */
-  async getPublicBlogs(params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    search?: string;
-  }): Promise<Blog[]> {
+  async getPublicBlogs(params?: any): Promise<Blog[]> {
     try {
-      const queryParams: any = { ...params };
+      const queryParams = { ...params };
       if (queryParams.page === 1) delete queryParams.page;
       if (queryParams.limit === 10) delete queryParams.limit;
-
-      const response = await this.apiClient.get(API_ENDPOINTS.GET_BLOGS, {
-        params: queryParams,
-      });
+      const response = await this.apiClient.get(API_ENDPOINTS.GET_BLOGS, { params: queryParams });
       return this.unwrapResponse<Blog[]>(response.data);
     } catch (error: any) {
-      console.error('getPublicBlogs error:', error.response?.data || error.message);
       throw this.handleError(error);
     }
   }
 
-  /**
-   * Get my blogs (requires auth)
-   */
-  async getMyBlogs(params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-  }): Promise<BlogListResponse> {
+  async getMyBlogs(params?: any): Promise<BlogListResponse> {
     try {
-      const queryParams: any = { ...params };
-      queryParams.page = params?.page ? Number(params.page) : 1;
-      queryParams.limit = params?.limit ? Number(params.limit) : 10;
-      
+      const queryParams = { ...params };
       if (queryParams.page === 1) delete queryParams.page;
       if (queryParams.limit === 10) delete queryParams.limit;
-      
-      const response = await this.apiClient.get(API_ENDPOINTS.GET_MY_BLOGS, {
-        params: queryParams,
-      });
+      const response = await this.apiClient.get(API_ENDPOINTS.GET_MY_BLOGS, { params: queryParams });
       return response.data;
     } catch (error: any) {
-      console.error('getMyBlogs error:', error.message);
       throw this.handleError(error);
     }
   }
 
-  /**
-   * Get blog by slug
-   */
-  async getBlogBySlug(slug: string): Promise<Blog | null> {
+  async getBlogBySlug(slug: string): Promise<Blog> {
     try {
       const response = await this.apiClient.get(API_ENDPOINTS.GET_BLOG_SLUG(slug));
       return this.unwrapResponse<Blog>(response.data);
@@ -115,10 +96,7 @@ class BlogRepository {
     }
   }
 
-  /**
-   * Get blog by ID
-   */
-  async getBlogById(id: string): Promise<Blog | null> {
+  async getBlogById(id: string): Promise<Blog> {
     try {
       const response = await this.apiClient.get(API_ENDPOINTS.GET_BLOG_BY_ID(id));
       return this.unwrapResponse<Blog>(response.data);
@@ -127,137 +105,76 @@ class BlogRepository {
     }
   }
 
-  /**
-   * Create new blog
-   */
   async createBlog(data: CreateBlogDto): Promise<Blog> {
     try {
       const response = await this.apiClient.post(API_ENDPOINTS.CREATE_BLOG, data);
       return this.unwrapResponse<Blog>(response.data);
     } catch (error: any) {
-      console.error('createBlog error:', error.message);
       throw this.handleError(error);
     }
   }
 
-  /**
-   * Update blog (draft only)
-   */
   async updateBlog(id: string, data: UpdateBlogDto): Promise<Blog> {
     try {
       const response = await this.apiClient.patch(API_ENDPOINTS.UPDATE_BLOG(id), data);
       return this.unwrapResponse<Blog>(response.data);
     } catch (error: any) {
-      console.error('updateBlog error:', error.message);
       throw this.handleError(error);
     }
   }
 
-  /**
-   * Delete blog
-   */
   async deleteBlog(id: string): Promise<void> {
     try {
       await this.apiClient.delete(API_ENDPOINTS.DELETE_BLOG(id));
     } catch (error: any) {
-      console.error('deleteBlog error:', error.message);
       throw this.handleError(error);
     }
   }
 
-  /**
-   * Submit blog for review (draft -> pending)
-   */
   async submitForReview(id: string): Promise<Blog> {
     try {
       const response = await this.apiClient.post(API_ENDPOINTS.SUBMIT_BLOG(id));
       return this.unwrapResponse<Blog>(response.data);
     } catch (error: any) {
-      console.error('submitForReview error:', error.message);
       throw this.handleError(error);
     }
   }
 
   /**
-   * Upload single image for blog (Using reliable XMLHttpRequest like OCR)
+   * Upload image - DIRECT TO CLOUDINARY (Bypass Server Network Issues)
    */
-  async uploadSingleImage(fileUri: string): Promise<{ url: string; publicId: string }> {
+  async uploadSingleImage(fileUri: string, mimeType: string = 'image/jpeg'): Promise<{ url: string; publicId: string }> {
+    console.log('[BlogRepo] === DIRECT CLOUDINARY UPLOAD ===', fileUri);
     try {
-      console.log('[BlogRepo] Uploading single image via XHR:', fileUri);
-      
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) console.warn('[BlogRepo] No token found for upload!');
-
-      let finalUri = fileUri;
-      if (Platform.OS === 'android') {
-        if (!finalUri.startsWith('content://') && !finalUri.startsWith('file://')) {
-          finalUri = `file://${finalUri}`;
-        }
-      } else if (Platform.OS === 'ios') {
-        if (finalUri.startsWith('file://')) {
-          finalUri = finalUri.replace('file://', '');
-        }
-      }
-
-      // Infer mime type
-      const isPng = finalUri.toLowerCase().endsWith('.png');
-      const type = isPng ? 'image/png' : 'image/jpeg';
-      let name = finalUri.split('/').pop();
-      if (!name || !name.includes('.')) {
-         name = `upload_${Date.now()}.${isPng ? 'png' : 'jpg'}`;
-      }
-
-      console.log(`[BlogRepo] Uploading via Direct AXIOS... Name: ${name}, Type: ${type}`);
-
-      const formData = new FormData();
-      formData.append('file', {
-        uri: finalUri,
-        type,
-        name,
-      } as any);
-
-      // Bypass axiosInstance interceptors using clean axios
-      // This avoids interference with token refresh or other interceptors on upload stream
-      const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.BLOG_UPLOAD_SINGLE}`, formData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          // 'Content-Type': 'multipart/form-data', // DO NOT SET THIS
-        },
-        // transformRequest: (data) => data, // REMOVE THIS too, let axios decide
-        timeout: 120000, 
-      });
-
-      console.log('[BlogRepo] Axios Success. Status:', response.status);
-      return this.unwrapResponse<{ url: string; publicId: string }>(response.data);
-
-    } catch (error: any) {
-      console.error('[BlogRepo] Upload Error:', error.message);
-      if (error.response) {
-         console.error('[BlogRepo] Server Body:', error.response.data);
-         throw new Error(`Server Error: ${error.response.status}`);
-      } else if (error.request) {
-         console.error('[BlogRepo] No response. Network/Timeout.');
-         throw new Error('Network error. Upload sent but no response.');
-      }
+      const secureUrl = await uploadToCloudinary(fileUri, mimeType);
+      // Với direct upload, ta có thể không lấy được publicId ngay, trả về null hoặc tách từ URL
+      return { 
+        url: secureUrl, 
+        publicId: secureUrl.split('/').pop()?.split('.')[0] || 'unknown' 
+      };
+    } catch (error) {
+      console.error('[BlogRepo] Cloudinary Direct Error:', error);
       throw error;
     }
   }
 
-  async uploadMultipleImages(fileUris: string[]): Promise<{ url: string; publicId: string }[]> {
-     // TODO: Implement multiple upload loop or batch endpoint
-     const results = [];
-     for (const uri of fileUris) {
-         results.push(await this.uploadSingleImage(uri));
-     }
-     return results;
+  async uploadMultipleImages(uris: string[]): Promise<{ url: string; publicId: string }[]> {
+    const promises = uris.map(u => this.uploadSingleImage(u));
+    return Promise.all(promises);
   }
 
   generateSlug(title: string): string {
-    return title.toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-');
+    const base = title.toLowerCase()
+      .trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/[\s-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const suffix = Math.random().toString(36).substring(2, 6);
+    return `${base}-${suffix}`;
   }
 }
 
 export const blogRepository = new BlogRepository();
+

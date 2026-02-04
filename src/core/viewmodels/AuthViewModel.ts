@@ -54,9 +54,22 @@ export const useAuthViewModel = () => {
           accessToken: response.accessToken ?? (authToken || response.token),
         };
       } catch (error: any) {
-        const errorMsg = error?.message || error?.response?.data?.message || 'Login failed';
+        // Extract error message for the ViewModel state
+        let rawMsg = error?.response?.data?.message || error?.response?.data?.error?.message || error?.message || 'Đăng nhập thất bại';
+        let errorMsg: string;
+        if (typeof rawMsg === 'string') {
+          errorMsg = rawMsg;
+        } else if (Array.isArray(rawMsg)) {
+          errorMsg = rawMsg.join(', ');
+        } else if (typeof rawMsg === 'object' && rawMsg !== null) {
+          errorMsg = rawMsg.message || JSON.stringify(rawMsg);
+        } else {
+          errorMsg = String(rawMsg);
+        }
+        
         setError(errorMsg);
-        throw new Error(errorMsg);
+        // Throw the ORIGINAL error so the screen can access error.response properties
+        throw error;
       } finally {
         setLoading(false);
       }

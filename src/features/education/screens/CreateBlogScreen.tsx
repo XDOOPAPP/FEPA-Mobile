@@ -18,7 +18,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
-import { Colors, Radius, Shadow, Spacing } from '../../../constants/theme';
+import { Colors, Radius, Shadow } from '../../../constants/theme';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useBlog } from '../../../common/hooks/useMVVM';
 
@@ -34,10 +34,10 @@ const CreateBlogScreen: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [summary, setSummary] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [author, setAuthor] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<'draft' | 'pending' | 'published' | 'rejected'>('draft');
 
   useEffect(() => {
     if (isEditing) {
@@ -53,102 +53,120 @@ const CreateBlogScreen: React.FC = () => {
         setTitle(blog.title);
         setContent(blog.content);
         setThumbnailUrl(blog.thumbnailUrl || '');
-        setAuthor(blog.authorName || '');
+        setAuthor(blog.author || '');
+        setCurrentStatus(blog.status as any);
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', ' không thể tải thông tin bài viết');
+      Alert.alert('Lỗi', 'Không thể tải thông tin bài viết');
       navigation.goBack();
     }
   };
 
+  const checkPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const apiLevel = typeof Platform.Version === 'number' ? Platform.Version : parseInt(Platform.Version as string, 10);
+      const permission = apiLevel >= 33 
+           ? (PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES || 'android.permission.READ_MEDIA_IMAGES')
+           : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+      
+      const granted = await PermissionsAndroid.request(permission);
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      return false;
+    }
+  };
+
   const handlePickImage = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const apiLevel = typeof Platform.Version === 'number' ? Platform.Version : parseInt(Platform.Version as string, 10);
-        
-        // Safety check for API 33 permission constant
-        const permission = apiLevel >= 33 
-             ? (PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES || 'android.permission.READ_MEDIA_IMAGES')
-             : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-        
-        const granted = await PermissionsAndroid.request(permission);
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            Alert.alert('Cần cấp quyền', 'Vui lòng cho phép truy cập thư viện ảnh để tải lên.');
-            return;
-        }
-      } catch (err) {
-        console.warn('Permission err:', err);
-      }
+    // Nếu đang chờ duyệt hoặc đã đăng bài, không cho sửa ảnh
+    if (isEditing && (currentStatus === 'pending' || currentStatus === 'published')) {
+      Alert.alert('Thông báo', 'Không thể sửa bài viết đang chờ duyệt hoặc đã công khai.');
+      return;
+    }
+
+    const hasPermission = await checkPermission();
+    if (!hasPermission) {
+      Alert.alert('Cần cấp quyền', 'Vui lòng cho phép truy cập thư viện ảnh.');
+      return;
     }
 
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
-        quality: 0.7,
+        quality: 0.3, // Giảm chất lượng xuống để file nhẹ hơn
+        maxWidth: 1000,
+        maxHeight: 1000,
       });
 
-      if (result.didCancel) return;
-      if (result.assets && result.assets[0].uri) {
-        const uri = result.assets[0].uri;
-        console.log('Selected image URI:', uri);
-        
-        setUploadingImage(true);
-        try {
-          const uploadRes = await uploadImage(uri);
-          console.log('Upload success result:', uploadRes);
-          if (uploadRes && uploadRes.url) {
-            setThumbnailUrl(uploadRes.url);
-          } else {
-            throw new Error('Không nhận được URL ảnh từ server');
-          }
-        } catch (err: any) {
-          console.error('Upload image error:', err);
-          Alert.alert('Lỗi', err.message || 'Không thể upload ảnh');
-        } finally {
-          setUploadingImage(false);
+      if (result.didCancel || !result.assets?.[0]?.uri) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri!;
+      const mimeType = asset.type || 'image/jpeg';
+      
+      setUploadingImage(true);
+      
+      try {
+        const uploadRes = await uploadImage(uri, mimeType);
+        if (uploadRes?.url) {
+          setThumbnailUrl(uploadRes.url);
         }
+      } catch (err: any) {
+        Alert.alert('Lỗi Upload', err.message || 'Không thể tải ảnh lên Hosting');
+      } finally {
+        setUploadingImage(false);
       }
     } catch (err) {
-      console.error('Pick image error:', err);
       Alert.alert('Lỗi', 'Không thể mở thư viện ảnh');
     }
   };
 
   const handleSave = async (submit = false) => {
-    if (!title || !content) {
-      Alert.alert('Thông báo', 'Vui lòng điền đầy đủ tiêu đề và nội dung');
+    if (!title.trim() || !content.trim()) {
+      Alert.alert('Thông báo', 'Vui lòng nhập tiêu đề và nội dung bài viết');
       return;
     }
 
-    const data = {
-      title,
-      content,
+    const blogData = {
+      title: title.trim(),
+      content: content.trim(),
       thumbnailUrl,
-      author: author || undefined,
+      author: author.trim() || undefined,
       slug: generateSlug(title),
       status: (submit ? 'pending' : 'draft') as 'pending' | 'draft',
     };
 
     try {
       if (isEditing) {
-        await updateBlog(blogId, data);
+        // Kiểm tra status trước khi gọi cập nhật phía Mobile để báo lỗi sớm cho người dùng
+        if (currentStatus === 'pending' || currentStatus === 'published') {
+          Alert.alert('Thông báo', 'Bài viết đang chờ duyệt hoặc đã công khai nên không thể chỉnh sửa.');
+          return;
+        }
+        await updateBlog(blogId, blogData);
       } else {
-        await createBlog(data);
+        await createBlog(blogData);
       }
       
       Alert.alert(
         'Thành công',
         submit ? 'Đã gửi duyệt bài viết' : 'Đã lưu bản nháp',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        [{ text: 'Đóng', onPress: () => navigation.goBack() }]
       );
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể lưu bài viết');
+      // Bắt lỗi Forbidden từ server
+      if (err.message?.includes('403') || err.message?.includes('published or pending')) {
+        Alert.alert('Lỗi', 'Bài viết này hiện không thể chỉnh sửa (đang chờ duyệt hoặc đã đăng).');
+      } else {
+        Alert.alert('Lỗi', err.message || 'Không thể lưu bài viết');
+      }
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Ionicons name="close" size={24} color={Colors.textPrimary} />
@@ -156,13 +174,13 @@ const CreateBlogScreen: React.FC = () => {
         <Text style={styles.headerTitle}>{isEditing ? 'Sửa bài viết' : 'Viết bài mới'}</Text>
         <TouchableOpacity 
           onPress={() => handleSave(false)}
-          disabled={blogState.isLoading}
+          disabled={blogState.isLoading || uploadingImage}
           style={styles.saveHeaderBtn}
         >
           {blogState.isLoading ? (
             <ActivityIndicator size="small" color={Colors.primary} />
           ) : (
-            <Text style={styles.saveHeaderBtnText}>Lưu</Text>
+            <Text style={styles.saveHeaderBtnText}>Lưu nháp</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -172,24 +190,28 @@ const CreateBlogScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Thumbnail Picker */}
-        <TouchableOpacity style={styles.imagePicker} onPress={handlePickImage}>
+        {/* Thumbnail Section */}
+        <TouchableOpacity 
+          style={styles.imagePicker} 
+          onPress={handlePickImage}
+          disabled={uploadingImage}
+        >
           {thumbnailUrl ? (
             <View>
-              <Image source={{ uri: thumbnailUrl }} style={styles.thumbnail} />
+              <Image source={{ uri: thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
               <View style={styles.imageOverlay}>
                 <Ionicons name="camera" size={24} color="#FFF" />
-                <Text style={styles.imageOverlayText}>Đổi ảnh bìa</Text>
+                <Text style={styles.imageOverlayText}>Thay đổi ảnh bìa</Text>
               </View>
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
               {uploadingImage ? (
-                <ActivityIndicator color={Colors.primary} />
+                <ActivityIndicator size="large" color={Colors.primary} />
               ) : (
                 <>
                   <Ionicons name="image-outline" size={48} color={Colors.textMuted} />
-                  <Text style={styles.imagePlaceholderText}>Thêm ảnh bìa bài viết</Text>
+                  <Text style={styles.imagePlaceholderText}>Thêm ảnh bìa (Thumbnail)</Text>
                 </>
               )}
             </View>
@@ -197,21 +219,31 @@ const CreateBlogScreen: React.FC = () => {
         </TouchableOpacity>
 
         <View style={styles.form}>
+          {isEditing && currentStatus !== 'draft' && (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>
+                Trạng thái: {currentStatus === 'pending' ? 'Đang chờ duyệt' : currentStatus === 'published' ? 'Đã công khai' : 'Bị từ chối'}
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Tiêu đề bài viết</Text>
           <TextInput
             style={styles.titleInput}
             value={title}
             onChangeText={setTitle}
-            placeholder="Nhập tiêu đề ấn tượng..."
+            placeholder="Ví dụ: 5 bước quản lý tài chính cá nhân"
             multiline
+            editable={!(isEditing && (currentStatus === 'pending' || currentStatus === 'published'))}
           />
 
-          <Text style={styles.label}>Tên tác giả hển thị (tuỳ chọn)</Text>
+          <Text style={styles.label}>Tên tác giả hiển thị (Tùy chọn)</Text>
           <TextInput
             style={styles.input}
             value={author}
             onChangeText={setAuthor}
-            placeholder="Mặc định là tên của bạn"
+            placeholder="Để trống nếu muốn dùng tên thật"
+            editable={!(isEditing && (currentStatus === 'pending' || currentStatus === 'published'))}
           />
 
           <Text style={styles.label}>Nội dung bài viết</Text>
@@ -219,16 +251,20 @@ const CreateBlogScreen: React.FC = () => {
             style={[styles.input, styles.contentArea]}
             value={content}
             onChangeText={setContent}
-            placeholder="Chia sẻ kiến thức của bạn tại đây..."
+            placeholder="Nội dung kiến thức bạn muốn chia sẻ..."
             multiline
             textAlignVertical="top"
+            editable={!(isEditing && (currentStatus === 'pending' || currentStatus === 'published'))}
           />
         </View>
 
         <TouchableOpacity 
-          style={styles.submitBtn}
+          style={[
+            styles.submitBtn, 
+            (blogState.isLoading || uploadingImage || (isEditing && (currentStatus === 'pending' || currentStatus === 'published'))) && { opacity: 0.5 }
+          ]}
           onPress={() => handleSave(true)}
-          disabled={blogState.isLoading}
+          disabled={blogState.isLoading || uploadingImage || (isEditing && (currentStatus === 'pending' || currentStatus === 'published'))}
         >
           <LinearGradient
             colors={['#10B981', '#059669']}
@@ -240,7 +276,9 @@ const CreateBlogScreen: React.FC = () => {
               <ActivityIndicator color="#FFF" />
             ) : (
               <>
-                <Text style={styles.submitBtnText}>Gửi duyệt bài viết</Text>
+                <Text style={styles.submitBtnText}>
+                  {currentStatus === 'pending' ? 'Đang chờ duyệt...' : 'Gửi xét duyệt bài viết'}
+                </Text>
                 <Ionicons name="send" size={18} color="#FFF" style={{ marginLeft: 8 }} />
               </>
             )}
@@ -248,7 +286,9 @@ const CreateBlogScreen: React.FC = () => {
         </TouchableOpacity>
         
         <Text style={styles.tipText}>
-          * Lưu ý: Bài viết của bạn sẽ được admin kiểm duyệt trước khi hiển thị công khai.
+          {isEditing && (currentStatus === 'pending' || currentStatus === 'published')
+            ? '* Bài viết này đang trong quá trình xét duyệt hoặc đã đăng, không thể sửa đổi.'
+            : '* Bài viết sẽ được Admin duyệt trước khi xuất bản rộng rãi.'}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -278,10 +318,10 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   saveHeaderBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: '#F1F5F9',
   },
   saveHeaderBtnText: {
     color: Colors.primary,
@@ -296,14 +336,14 @@ const styles = StyleSheet.create({
   },
   imagePicker: {
     width: width,
-    height: 200,
+    height: 220,
     backgroundColor: '#F8FAFC',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
   thumbnail: {
     width: width,
-    height: 200,
+    height: 220,
   },
   imageOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -329,6 +369,18 @@ const styles = StyleSheet.create({
   form: {
     padding: 16,
   },
+  statusBadge: {
+    backgroundColor: '#FEF3C7',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  statusBadgeText: {
+    color: '#92400E',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   label: {
     fontSize: 14,
     fontWeight: '600',
@@ -353,10 +405,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: Colors.textPrimary,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
   },
   contentArea: {
     minHeight: 250,

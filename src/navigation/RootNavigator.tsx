@@ -22,7 +22,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Welcome: undefined;
   Login: undefined;
-  Register: undefined;
+  Register: { email?: string; step?: 'info' | 'otp' } | undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
   TwoFactorLogin: { email: string; tempToken: string };

@@ -24,7 +24,7 @@ import { GlassCard } from '../../../components/design-system/GlassCard';
 
 type RootStackParamList = {
   Login: undefined;
-  Register: undefined;
+  Register: { email?: string; step?: 'info' | 'otp' } | undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
 };
@@ -41,22 +41,37 @@ interface RegisterFormData {
 
 type RegisterStep = 'info' | 'otp';
 
-const RegisterScreen: React.FC<Props> = ({ navigation }) => {
+const RegisterScreen: React.FC<Props> = ({ navigation, route }) => {
   const { authState, register, verifyOtp, resendOtp, clearMessages } =
     useAuth();
   const authContext = useContext(AuthContext);
-  const [step, setStep] = useState<RegisterStep>('info');
+  
+  // Use params from route if available
+  const initialEmail = route.params?.email || '';
+  const initialStep = route.params?.step || 'info';
+  
+  const [step, setStep] = useState<RegisterStep>(initialStep);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<RegisterFormData>({
     fullName: '',
-    email: '',
+    email: initialEmail,
     password: '',
     confirmPassword: '',
     phone: '',
   });
   const [errors, setErrors] = useState<Partial<RegisterFormData>>({});
+
+  // Reset form when route params change
+  useEffect(() => {
+    if (route.params?.email) {
+      setFormData(prev => ({ ...prev, email: route.params?.email || '' }));
+    }
+    if (route.params?.step) {
+      setStep(route.params?.step);
+    }
+  }, [route.params]);
 
   const validateForm = useCallback(() => {
     const newErrors: Partial<RegisterFormData> = {};

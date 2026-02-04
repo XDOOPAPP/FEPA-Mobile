@@ -40,7 +40,6 @@ const AiInsightsScreen: React.FC = () => {
       const savedProfile = await AsyncStorage.getItem('ai_financial_profile');
       if (savedProfile) setProfile(JSON.parse(savedProfile));
 
-      // Gọi đồng thời các API AI
       const [insightsRes, predictRes, anomaliesRes] = await Promise.all([
         getAiInsights(),
         predictSpending({ month: new Date().toISOString().substring(0, 7) }),
@@ -58,70 +57,76 @@ const AiInsightsScreen: React.FC = () => {
     }
   };
 
-  const score = insights?.score || 85; // Giả lập nếu API chưa trả về score
+  const score = insights?.score || 85;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#1E293B', '#0F172A']} style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <View style={styles.container}>
         
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
+            <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>FEPA AI Insights</Text>
-          <TouchableOpacity onPress={loadAllAiData} disabled={loading}>
-            <Ionicons name="refresh" size={20} color="#FFF" />
+          <Text style={styles.headerTitle}>Thông phân tích AI</Text>
+          <TouchableOpacity onPress={loadAllAiData} disabled={loading} style={styles.refreshBtn}>
+            <Ionicons name="refresh" size={20} color={Colors.primary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
           {/* AI Financial Score */}
-          <View style={styles.scoreContainer}>
-            <Text style={styles.scoreLabel}>ĐIỂM SỨC KHỎE TÀI CHÍNH</Text>
-            <View style={styles.scoreCircle}>
-                <LinearGradient 
-                    colors={['#8B5CF6', '#3B82F6']} 
-                    style={styles.scoreInner}
-                >
-                    <Text style={styles.scoreValue}>{score}</Text>
-                    <Text style={styles.scoreMax}>/100</Text>
-                </LinearGradient>
+          <View style={styles.scoreSection}>
+            <View style={styles.scoreContainer}>
+              <View style={styles.scoreCircle}>
+                  <LinearGradient 
+                      colors={['#E0F2FE', '#BAE6FD']} 
+                      style={styles.scoreInner}
+                  >
+                      <Text style={styles.scoreValue}>{score}</Text>
+                      <Text style={styles.scoreMax}>/100</Text>
+                  </LinearGradient>
+              </View>
+              <View style={styles.scoreInfo}>
+                <Text style={styles.scoreLabel}>ĐIỂM TÀI CHÍNH</Text>
+                <Text style={[styles.scoreLevel, { color: score >= 80 ? Colors.success : Colors.warning }]}>
+                    {score >= 80 ? 'Rất Tốt' : score >= 60 ? 'Khá' : 'Cần Cải Thiện'}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.scoreLevel}>
-                {score >= 80 ? 'Rất Tốt' : score >= 60 ? 'Khá' : 'Cần Cải Thiện'}
-            </Text>
           </View>
 
           {/* Personalized Summary from Gemini */}
-          <GlassCard style={styles.aiCard}>
-             <View style={styles.aiHeader}>
-                <Ionicons name="sparkles" size={20} color="#A78BFA" />
-                <Text style={styles.aiTitle}>Tóm tắt từ Trợ lý Gemini</Text>
-             </View>
-             {loading ? (
-                 <ActivityIndicator color={Colors.primary} style={{ margin: 20 }} />
-             ) : (
-                <Text style={styles.aiText}>
-                    {insights?.summary || `Dựa trên thu nhập ${profile?.monthlyIncome?.toLocaleString()}đ, bạn đang duy trì thói quen ${profile?.spendingStyle === 'frugal' ? 'tiết kiệm' : 'ổn định'}. Dự kiến tháng này bạn sẽ chi tiêu khoảng ${prediction?.predictions?.reduce((a: any, b: any) => a + b.amount, 0).toLocaleString()}đ.`}
-                </Text>
-             )}
-          </GlassCard>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+               <Ionicons name="sparkles" size={20} color="#8B5CF6" />
+               <Text style={styles.sectionTitle}>Tóm tắt từ Gemini</Text>
+            </View>
+            <GlassCard style={styles.aiCard}>
+               {loading ? (
+                   <ActivityIndicator color={Colors.primary} style={{ margin: 20 }} />
+               ) : (
+                  <Text style={styles.aiText}>
+                      {insights?.summary || `Dựa trên thu nhập ${profile?.monthlyIncome?.toLocaleString() || 'hàng tháng'}đ, bạn đang duy trì thói quen ${profile?.spendingStyle === 'frugal' ? 'tiết kiệm' : 'ổn định'}. Dự kiến tháng này bạn sẽ chi tiêu khoảng ${prediction?.predictions?.reduce((a: any, b: any) => a + b.amount, 0).toLocaleString() || '0'}đ.`}
+                  </Text>
+               )}
+            </GlassCard>
+          </View>
 
-          {/* Key Insights Row */}
+          {/* Key Insights Stats */}
           <View style={styles.insightGrid}>
              <View style={styles.insightItem}>
-                <View style={[styles.insightIcon, {backgroundColor: '#34D39920'}]}>
-                    <Ionicons name="trending-up" size={20} color="#34D399" />
+                <View style={[styles.insightIcon, {backgroundColor: '#F0FDF4'}]}>
+                    <Ionicons name="trending-up" size={20} color={Colors.success} />
                 </View>
                 <Text style={styles.insightVal}>{prediction?.predictions?.length || 0}</Text>
-                <Text style={styles.insightLab}>Dự báo mới</Text>
+                <Text style={styles.insightLab}>Dự báo</Text>
              </View>
              <View style={styles.insightItem}>
-                <View style={[styles.insightIcon, {backgroundColor: '#F8717120'}]}>
-                    <Ionicons name="alert-circle" size={20} color="#F87171" />
+                <View style={[styles.insightIcon, {backgroundColor: '#FEF2F2'}]}>
+                    <Ionicons name="alert-circle" size={20} color={Colors.danger} />
                 </View>
                 <Text style={styles.insightVal}>{anomalies.length}</Text>
                 <Text style={styles.insightLab}>Bất thường</Text>
@@ -131,7 +136,7 @@ const AiInsightsScreen: React.FC = () => {
           {/* Anomalies List */}
           {anomalies.length > 0 && (
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Chi tiêu cần lưu ý</Text>
+                <Text style={styles.sectionTitle}>Giao dịch bất thường</Text>
                 {anomalies.map((item, idx) => (
                     <GlassCard key={idx} style={styles.itemCard}>
                         <View style={styles.itemRow}>
@@ -141,7 +146,7 @@ const AiInsightsScreen: React.FC = () => {
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.itemAmt}>{item.amount.toLocaleString()}đ</Text>
-                                <Text style={styles.itemReason}>Cao hơn {((item.score - 1) * 100).toFixed(0)}% mức bình thường</Text>
+                                <Text style={styles.itemReason}>Cao hơn mức thường lệ</Text>
                             </View>
                         </View>
                     </GlassCard>
@@ -149,25 +154,26 @@ const AiInsightsScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Future Predictions */}
+          {/* Future Predictions Bar Chart */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Dự báo tháng {new Date().getMonth() + 2}</Text>
-            <GlassCard>
+            <Text style={styles.sectionTitle}>Phân bổ dự báo tới</Text>
+            <GlassCard style={styles.predictCard}>
                 {prediction?.predictions?.map((p: any, idx: number) => (
                     <View key={idx} style={styles.predictRow}>
-                        <Text style={styles.predictCat}>{p.category}</Text>
+                        <Text style={styles.predictCat} numberOfLines={1}>{p.category}</Text>
                         <View style={styles.predictBarContainer}>
                             <View style={[styles.predictBar, { width: `${p.confidence * 100}%`, backgroundColor: Colors.primary }]} />
                         </View>
                         <Text style={styles.predictAmt}>{Math.round(p.amount/1000)}k</Text>
                     </View>
                 ))}
+                {!prediction?.predictions?.length && <Text style={styles.aiText}>Chưa có dữ liệu dự báo.</Text>}
             </GlassCard>
           </View>
 
           <View style={{ height: 40 }} />
         </ScrollView>
-      </LinearGradient>
+      </View>
     </SafeAreaView>
   );
 };
@@ -175,10 +181,11 @@ const AiInsightsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFF',
   },
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -186,86 +193,103 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.divider,
   },
   backBtn: {
     padding: 5,
   },
+  refreshBtn: {
+    padding: 5,
+  },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#FFF',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 40,
   },
-  scoreContainer: {
-    alignItems: 'center',
-    paddingVertical: 30,
+  scoreSection: {
+    marginBottom: 30,
   },
-  scoreLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#94A3B8',
-    letterSpacing: 2,
-    marginBottom: 20,
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: Radius.lg,
+    ...Shadow.sm,
   },
   scoreCircle: {
-      width: 140,
-      height: 140,
-      borderRadius: 70,
-      padding: 10,
-      backgroundColor: 'rgba(255,255,255,0.05)',
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      padding: 6,
+      backgroundColor: '#F1F5F9',
       justifyContent: 'center',
       alignItems: 'center',
   },
   scoreInner: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
+      width: 88,
+      height: 88,
+      borderRadius: 44,
       justifyContent: 'center',
       alignItems: 'center',
-      ...Shadow.glow,
   },
   scoreValue: {
-      fontSize: 48,
-      fontWeight: '900',
-      color: '#FFF',
+      fontSize: 32,
+      fontWeight: '800',
+      color: Colors.primaryDark,
   },
   scoreMax: {
-      fontSize: 14,
-      color: 'rgba(255,255,255,0.6)',
+      fontSize: 10,
+      color: Colors.primary,
       fontWeight: '600',
   },
+  scoreInfo: {
+    marginLeft: 20,
+    flex: 1,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
   scoreLevel: {
-      marginTop: 15,
+      fontSize: 22,
+      fontWeight: '800',
+  },
+  section: {
+      marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
       fontSize: 18,
       fontWeight: '700',
-      color: '#34D399',
+      color: Colors.textPrimary,
+      marginLeft: 8,
   },
   aiCard: {
       padding: 16,
-      marginBottom: 24,
+      backgroundColor: '#F5F3FF', // Light purple
       borderWidth: 1,
-      borderColor: 'rgba(139, 92, 246, 0.3)',
-  },
-  aiHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 10,
-  },
-  aiTitle: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: '#A78BFA',
-      marginLeft: 8,
+      borderColor: '#E9E3FF',
   },
   aiText: {
       fontSize: 15,
       lineHeight: 22,
-      color: '#E2E8F0',
-      fontWeight: '500',
+      color: '#4B5563',
+      fontStyle: 'italic',
   },
   insightGrid: {
       flexDirection: 'row',
@@ -274,15 +298,16 @@ const styles = StyleSheet.create({
   },
   insightItem: {
       width: (width - 52) / 2,
-      backgroundColor: 'rgba(255,255,255,0.05)',
-      borderRadius: 16,
+      backgroundColor: '#FFF',
+      borderRadius: Radius.lg,
       padding: 16,
       alignItems: 'center',
+      ...Shadow.sm,
   },
   insightIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 10,
@@ -290,26 +315,18 @@ const styles = StyleSheet.create({
   insightVal: {
       fontSize: 20,
       fontWeight: '800',
-      color: '#FFF',
+      color: Colors.textPrimary,
   },
   insightLab: {
-      fontSize: 12,
-      color: '#94A3B8',
-      marginTop: 4,
-  },
-  section: {
-      marginBottom: 24,
-  },
-  sectionTitle: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: '#FFF',
-      marginBottom: 12,
-      marginLeft: 4,
+      fontSize: 13,
+      color: Colors.textSecondary,
+      marginTop: 2,
   },
   itemCard: {
-      padding: 12,
-      marginBottom: 10,
+      padding: 16,
+      marginBottom: 12,
+      backgroundColor: '#FFF',
+      ...Shadow.sm,
   },
   itemRow: {
       flexDirection: 'row',
@@ -320,52 +337,59 @@ const styles = StyleSheet.create({
       flex: 1,
   },
   itemCat: {
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: '700',
-      color: '#FFF',
+      color: Colors.textPrimary,
   },
   itemDate: {
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.textMuted,
       marginTop: 2,
   },
   itemAmt: {
-      fontSize: 15,
-      fontWeight: '800',
-      color: '#F87171',
+      fontSize: 16,
+      fontWeight: '700',
+      color: Colors.danger,
   },
   itemReason: {
-      fontSize: 10,
-      color: '#F87171',
+      fontSize: 11,
+      color: Colors.textMuted,
       marginTop: 2,
+  },
+  predictCard: {
+    backgroundColor: '#FFF',
+    padding: 16,
+    ...Shadow.sm,
   },
   predictRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.divider,
   },
   predictCat: {
-      width: 80,
-      fontSize: 13,
+      width: 90,
+      fontSize: 14,
       fontWeight: '600',
-      color: '#E2E8F0',
+      color: Colors.textPrimary,
   },
   predictBarContainer: {
       flex: 1,
-      height: 6,
-      backgroundColor: 'rgba(255,255,255,0.1)',
-      borderRadius: 3,
-      marginHorizontal: 12,
+      height: 8,
+      backgroundColor: '#F1F5F9',
+      borderRadius: 4,
+      marginHorizontal: 15,
   },
   predictBar: {
       height: '100%',
-      borderRadius: 3,
+      borderRadius: 4,
   },
   predictAmt: {
-      width: 45,
-      fontSize: 13,
-      fontWeight: '800',
-      color: '#FFF',
+      width: 50,
+      fontSize: 14,
+      fontWeight: '700',
+      color: Colors.textPrimary,
       textAlign: 'right',
   }
 });

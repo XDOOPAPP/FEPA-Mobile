@@ -86,7 +86,7 @@ const BlogDetailScreen: React.FC = () => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Thumbnail */}
         {blog.thumbnailUrl ? (
-          <Image source={{ uri: blog.thumbnailUrl }} style={styles.thumbnail} />
+          <Image source={{ uri: blog.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
         ) : (
           <LinearGradient colors={Colors.primaryGradient} style={styles.thumbnailPlaceholder}>
             <Ionicons name="newspaper-outline" size={64} color="#FFF" />
@@ -112,13 +112,13 @@ const BlogDetailScreen: React.FC = () => {
           <Text style={styles.title}>{blog.title}</Text>
 
           {/* Author */}
-          {blog.authorName && (
+          {blog.author && (
             <View style={styles.authorRow}>
               <View style={styles.authorAvatar}>
-                <Text style={styles.avatarText}>{blog.authorName[0]}</Text>
+                <Text style={styles.avatarText}>{blog.author[0]}</Text>
               </View>
               <View>
-                <Text style={styles.authorName}>{blog.authorName}</Text>
+                <Text style={styles.authorName}>{blog.author}</Text>
                 <Text style={styles.authorTitle}>Chuyên gia FEPA</Text>
               </View>
             </View>
@@ -131,8 +131,21 @@ const BlogDetailScreen: React.FC = () => {
             <Text style={styles.summary}>{blog.summary}</Text>
           )}
 
-          {/* Main Content */}
           <Text style={styles.blogContent}>{blog.content}</Text>
+          
+          {/* Image Gallery - If multiple images exist */}
+          {blog.images && blog.images.length > 0 && (
+            <View style={styles.galleryContainer}>
+               <Text style={styles.galleryTitle}>Hình ảnh minh họa</Text>
+               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
+                 {blog.images.map((img: string, index: number) => (
+                   <TouchableOpacity key={index} activeOpacity={0.8} style={styles.galleryItem}>
+                     <Image source={{ uri: img }} style={styles.galleryImage} resizeMode="cover" />
+                   </TouchableOpacity>
+                 ))}
+               </ScrollView>
+            </View>
+          )}
           
           <View style={styles.footerSpacing} />
         </View>
@@ -315,7 +328,33 @@ const styles = StyleSheet.create({
       borderRadius: 28,
       alignItems: 'center',
       justifyContent: 'center',
-  }
+  },
+  galleryContainer: {
+    marginTop: Spacing.xl,
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+  },
+  galleryTitle: {
+    ...Typography.bodyBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  galleryScroll: {
+    paddingRight: 20,
+  },
+  galleryItem: {
+    width: 240,
+    height: 160,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    backgroundColor: Colors.divider,
+    marginRight: 12,
+  },
+  galleryImage: {
+    width: '100%',
+    height: '100%',
+  },
 });
 
 export default BlogDetailScreen;
